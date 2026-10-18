@@ -80,7 +80,10 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .collage{position:relative;flex:1;min-height:0}
 .pol{position:absolute;background:#fff;box-shadow:0 10px 22px rgba(0,0,0,.2);padding:0;transform:rotate(var(--r))}
 .pol .ph{position:absolute;inset:8px 8px 30px 8px;overflow:hidden;background:#eee}
-.pol img{width:100%;height:100%;object-fit:cover;display:block}
+.pol img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .6s}
+.pol img.ok{opacity:1}
+.pol .ph{background:linear-gradient(110deg,#eee 30%,#f8f8f8 50%,#eee 70%) 0 0/300% 100%;animation:shim 1.4s linear infinite}
+@keyframes shim{to{background-position:-150% 0}}
 .tape{position:absolute;top:-10px;left:50%;width:70px;height:22px;margin-left:-35px;background:var(--tape);transform:rotate(-4deg);z-index:2;box-shadow:0 1px 2px rgba(0,0,0,.08);
   -webkit-mask:linear-gradient(90deg,transparent 0 2px,#000 2px calc(100% - 2px),transparent 0);mask:linear-gradient(90deg,transparent 0 2px,#000 2px calc(100% - 2px),transparent 0)}
 [data-theme=wedding] .tape{width:14px;height:14px;margin-left:-7px;top:-5px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#e8dcc6);transform:none;-webkit-mask:none;mask:none;box-shadow:0 2px 4px rgba(0,0,0,.2)}
@@ -250,12 +253,14 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
   <span class="lbl">Together since</span>
   <input class="field" id="sSince" type="date">
   <button class="btn full" id="sSave" style="margin-bottom:16px">Save</button>
-  <span class="hint">Photos are saved on this device. Export a backup to move them to another phone.</span>
+  <span class="hint">Your album is shared between you two and saved online. You can still export a backup copy.</span>
   <div class="row">
     <button class="btn ghost" id="expBtn" style="flex:1">Export backup</button>
     <label class="btn ghost" style="flex:1">Import<input type="file" id="impFile" accept="application/json" hidden></label>
   </div>
-  <button class="btn ghost full" id="demoBtn" style="margin-top:10px">Try with demo memories</button>
+  <button class="btn ghost full" id="migBtn" style="margin-top:10px" hidden></button>
+  <span class="hint" id="who" style="margin-top:14px;text-align:center"></span>
+  <button class="btn ghost full" id="outBtn">Sign out</button>
 </div></div>
 
 <div id="viewer">
@@ -267,7 +272,13 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,setDoc,getDoc,deleteDoc,onSnapshot} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const fbApp=initializeApp({apiKey:"AIzaSyB7mCgTdfxnlVqdSarP0LH-9GFarlbdn30",authDomain:"rami-fedaa-memory-book.firebaseapp.com",projectId:"rami-fedaa-memory-book",storageBucket:"rami-fedaa-memory-book.firebasestorage.app",messagingSenderId:"1028998036488",appId:"1:1028998036488:web:a9220fc6a4a9d92c9c25bd"});
+const auth=getAuth(fbApp);
+let fdb;try{fdb=initializeFirestore(fbApp,{localCache:persistentLocalCache({cacheSizeBytes:100*1024*1024,tabManager:persistentMultipleTabManager()})})}catch(e){fdb=initializeFirestore(fbApp,{})}
 (()=>{
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e};
@@ -349,6 +360,17 @@ tx(mode,fn){return new Promise((res,rej)=>{const t=this.db.transaction('m',mode)
 all(){return this.db?this.tx('readonly',s=>s.getAll()):Promise.resolve(this.mem.slice())},
 put(o){if(!this.db){this.mem=this.mem.filter(m=>m.id!==o.id).concat(o);return Promise.resolve()}return this.tx('readwrite',s=>s.put(o))},
 del(id){if(!this.db){this.mem=this.mem.filter(m=>m.id!==id);return Promise.resolve()}return this.tx('readwrite',s=>s.delete(id))}};
+
+/* ================= CLOUD (Firestore) ================= */
+const Cloud={
+ async put(m,photos,prog){for(let i=0;i<photos.length;i++){if(prog)prog(i+1,photos.length);await setDoc(doc(fdb,'photos',m.id+'_'+i),{mid:m.id,i,data:photos[i]})}
+  await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:photos.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
+ async del(m){for(let i=0;i<(m.n||0);i++)await deleteDoc(doc(fdb,'photos',m.id+'_'+i));await deleteDoc(doc(fdb,'memories',m.id))}};
+const PH=new Map();
+function loadPhotos(m){if(!PH.has(m.id)){const pr=Promise.all(Array.from({length:m.n||0},(_,i)=>getDoc(doc(fdb,'photos',m.id+'_'+i)).then(s=>s.exists()?s.data().data:'')));
+  PH.set(m.id,pr);pr.catch(()=>PH.delete(m.id))}return PH.get(m.id)}
+function fill(p){const m=mems.find(x=>x.id===p.dataset.id);if(!m||p._filled)return;p._filled=true;
+ loadPhotos(m).then(arr=>p.querySelectorAll('.pol img').forEach((im,i)=>{if(arr[i]){im.onload=()=>im.classList.add('ok');im.src=arr[i]}})).catch(()=>{p._filled=false})}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const fmt=d=>{if(!d)return'';try{return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}catch(e){return d}};
@@ -399,24 +421,26 @@ function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const 
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);
- const col=el('div','collage');leaf.appendChild(col);const ph=m.photos.slice(0,3);const L=LAY[ph.length]||LAY[1];
- ph.forEach((b,i)=>{const u=URL.createObjectURL(b);urls.push(u);const s=L[i];const pol=el('button','pol');
+ const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];
+ Array.from({length:np}).forEach((_,i)=>{const s=L[i];const pol=el('button','pol');
   pol.style.cssText=`left:${s.l}%;top:${s.t}%;width:${s.w}%;height:${s.h}%;--r:${s.r}deg;--d:${i*110}ms`;
-  pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt="" src="${u}"></span>`;pol.onclick=()=>openViewer(m,i);col.appendChild(pol)});
- if(m.photos.length>3){const mo=el('button','more');mo.textContent='+'+(m.photos.length-3);mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
+  pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt=""></span>`;pol.onclick=()=>openViewer(m,i);col.appendChild(pol)});
+ if((m.n||0)>3){const mo=el('button','more');mo.textContent='+'+(m.n-3);mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
  const cap=el('div','cap');const h=el('h3');h.textContent=m.title||'A lovely memory';const dt=el('div','date');dt.textContent=fmt(m.date);cap.append(h,dt);
  if(m.note){const n=el('p','note');n.textContent=m.note;cap.appendChild(n)}leaf.appendChild(cap);
  const k=el('button','kebab');k.setAttribute('aria-label','Delete');k.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
- k.onclick=async()=>{if(confirm('Delete this memory?')){await DB.del(m.id);mems=mems.filter(x=>x.id!==m.id);render();toast('Memory deleted')}};leaf.appendChild(k);
+ k.onclick=async()=>{if(confirm('Delete this memory?')){try{await Cloud.del(m);mems=mems.filter(x=>x.id!==m.id);PH.delete(m.id);render(true);toast('Memory deleted')}catch(e){toast("Couldn't delete — try again")}}};leaf.appendChild(k);
  const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.slice();const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
  leaf.insertAdjacentHTML('beforeend',html);return p}
 let io;
-function render(){urls.forEach(u=>URL.revokeObjectURL(u));urls.length=0;
+let near;
+function render(keep){const bk=$('#book');const pi=keep?Math.round(Math.abs(bk.scrollLeft)/(bk.clientWidth||1)):0;
  const list=mems.filter(m=>m.ch===cur).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||a.created-b.created);
  const book=$('#book');book.innerHTML='';book.appendChild(chapterPage(list.length));list.forEach(m=>book.appendChild(memPage(m)));
- book.scrollLeft=0;if(io)io.disconnect();
+ book.scrollLeft=Math.min(pi,book.children.length-1)*book.clientWidth;if(io)io.disconnect();if(near)near.disconnect();
+ near=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting&&e.target.dataset.id)fill(e.target)}),{root:book,rootMargin:'0px 100% 0px 100%'});[...book.children].forEach(p=>near.observe(p));
  io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{root:book,threshold:.55});
  [...book.children].forEach(p=>io.observe(p));onScroll()}
 let ticking=false;
@@ -444,7 +468,7 @@ function daysTxt(){if(!settings.since)return'';const n=Math.floor((new Date(toda
 function header(){$('#nA').textContent=$('#cA').textContent=settings.a;$('#nB').textContent=$('#cB').textContent=settings.b;$('#days').textContent=daysTxt();$('#cDays').textContent=daysTxt()||'Every moment with you is worth keeping';document.title=`${settings.a} & ${settings.b} · Our Memory Book`}
 function openSet(){$('#sA').value=settings.a;$('#sB').value=settings.b;$('#sSince').value=settings.since||'';$('#setWrap').classList.add('on')}
 $('#setBtn').onclick=openSet;$('#namesBtn').onclick=openSet;
-$('#sSave').onclick=()=>{settings={a:$('#sA').value.trim()||'Rami',b:$('#sB').value.trim()||'Fedaa',since:$('#sSince').value};store.set('album.settings.en',settings);header();close();toast('Saved')};
+$('#sSave').onclick=()=>{settings={a:$('#sA').value.trim()||'Rami',b:$('#sB').value.trim()||'Fedaa',since:$('#sSince').value};store.set('album.settings.en',settings);header();close();setDoc(doc(fdb,'meta','settings'),settings).then(()=>toast('Saved'),()=>toast("Couldn't save — check your connection"))};
 document.querySelectorAll('.wrap').forEach(w=>w.addEventListener('click',e=>{if(e.target===w)w.classList.remove('on')}));
 const close=()=>document.querySelectorAll('.wrap').forEach(w=>w.classList.remove('on'));
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1800)}
@@ -455,48 +479,80 @@ function chips(){$('#chips').innerHTML=ORDER.map(k=>`<button class="chip${k===pi
  $('#chips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{pickCh=c.dataset.k;chips()})}
 function openAdd(){picked=[];pickCh=cur;$('#thumbs').innerHTML='';$('#fTitle').value='';$('#fNote').value='';$('#fDate').value=today();$('#files').value='';chips();$('#addWrap').classList.add('on')}
 $('#fab').onclick=openAdd;
-async function shrink(file,max=1800){let img;try{img=await createImageBitmap(file)}catch(e){img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
- const w=img.width,h=img.height,s=Math.min(1,max/Math.max(w,h));const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
- c.getContext('2d').drawImage(img,0,0,c.width,c.height);return new Promise(r=>c.toBlob(b=>r(b||file),'image/jpeg',.86))}
-$('#files').onchange=async e=>{const fs=[...e.target.files].slice(0,6-picked.length);for(const f of fs){try{const b=await shrink(f);picked.push(b);const i=el('img');i.src=URL.createObjectURL(b);$('#thumbs').appendChild(i)}catch(err){}}};
-$('#saveBtn').onclick=async()=>{if(!picked.length){toast('Pick at least one photo');return}
- const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),photos:picked,created:Date.now()};
- try{await DB.put(m)}catch(e){toast("Couldn't save — storage may be full");return}
- mems.push(m);close();const go=()=>{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p.scrollIntoView({behavior:reduce?'auto':'smooth',inline:'center'});const f=$('#fab').getBoundingClientRect();burst(f.left+29,f.top+29);toast('Memory saved ✨')};
+/* resize + compress until it fits comfortably in one Firestore document */
+async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(e){img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
+ let max=1600,q=.82;const c=document.createElement('canvas'),x=c.getContext('2d');
+ for(let k=0;k<12;k++){const s=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);x.drawImage(img,0,0,c.width,c.height);
+  const d=c.toDataURL('image/jpeg',q);if(d.length<880000)return d;if(q>.62)q-=.08;else max=Math.round(max*.82)}
+ return c.toDataURL('image/jpeg',.5)}
+$('#files').onchange=async e=>{const fs=[...e.target.files].slice(0,6-picked.length);for(const f of fs){try{const d=await shrink(f);picked.push(d);const i=el('img');i.src=d;$('#thumbs').appendChild(i)}catch(err){}}};
+let saving=false;
+$('#saveBtn').onclick=async()=>{if(saving)return;if(!picked.length){toast('Pick at least one photo');return}
+ const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),created:Date.now(),n:picked.length};
+ saving=true;$('#saveBtn').textContent='Uploading…';
+ try{await Cloud.put(m,picked,(i,n)=>{$('#saveBtn').textContent=`Uploading ${i}/${n}…`})}catch(e){saving=false;$('#saveBtn').textContent='Save memory';toast("Couldn't upload — check your connection");return}
+ saving=false;$('#saveBtn').textContent='Save memory';PH.set(m.id,Promise.resolve(picked.slice()));
+ if(!mems.find(x=>x.id===m.id))mems.push(m);close();const go=()=>{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p.scrollIntoView({behavior:reduce?'auto':'smooth',inline:'center'});const f=$('#fab').getBoundingClientRect();burst(f.left+29,f.top+29);toast('Memory saved ✨')};
  if(pickCh!==cur){switchCh(pickCh);setTimeout(go,1100)}else{render();setTimeout(go,250)}};
 
 /* ================= VIEWER ================= */
-let vm=null,vi=0,vurl=null;
-function showV(){if(vurl)URL.revokeObjectURL(vurl);vurl=URL.createObjectURL(vm.photos[vi]);const im=$('#vimg');im.classList.remove('kb');void im.offsetWidth;im.src=vurl;im.classList.add('kb');
- $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${vm.photos.length}`;
- $('#vprev').style.visibility=vi>0?'visible':'hidden';$('#vnext').style.visibility=vi<vm.photos.length-1?'visible':'hidden'}
-function openViewer(m,i){vm=m;vi=i;$('#viewer').classList.add('on');showV()}
+let vm=null,vi=0;
+async function showV(){const im=$('#vimg');const n=vm.n||0;
+ $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;
+ $('#vprev').style.visibility=vi>0?'visible':'hidden';$('#vnext').style.visibility=vi<n-1?'visible':'hidden';
+ const want=vi,arr=await loadPhotos(vm);if(want!==vi)return;
+ im.classList.remove('kb');void im.offsetWidth;im.src=arr[vi]||'';im.classList.add('kb')}
+function openViewer(m,i){vm=m;vi=i;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}
 $('#vx').onclick=()=>{$('#viewer').classList.remove('on')};
-$('#vprev').onclick=()=>{if(vi>0){vi--;showV()}};$('#vnext').onclick=()=>{if(vi<vm.photos.length-1){vi++;showV()}};
+$('#vprev').onclick=()=>{if(vi>0){vi--;showV()}};$('#vnext').onclick=()=>{if(vi<(vm.n||0)-1){vi++;showV()}};
 let sx=0;$('#viewer').addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
 $('#viewer').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50){dx<0?$('#vnext').click():$('#vprev').click()}});
 
-/* ================= BACKUP / DEMO ================= */
+/* ================= BACKUP / MIGRATION ================= */
 const b2d=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
-$('#expBtn').onclick=async()=>{toast('Preparing backup…');const out={v:1,settings,memories:[]};for(const m of mems)out.memories.push(Object.assign({},m,{photos:await Promise.all(m.photos.map(b2d))}));
+$('#expBtn').onclick=async()=>{toast('Preparing backup…');const out={v:2,settings,memories:[]};
+ for(const m of mems)out.memories.push(Object.assign({},m,{photos:await loadPhotos(m)}));
  const a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='memory-book-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)};
-$('#impFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.settings){settings=Object.assign(settings,d.settings);store.set('album.settings.en',settings);header()}
- for(const m of d.memories||[]){m.photos=await Promise.all(m.photos.map(u=>fetch(u).then(r=>r.blob())));await DB.put(m);mems=mems.filter(x=>x.id!==m.id).concat(m)}
- close();render();toast('Memories restored ✨')}catch(err){toast('That file is not a valid backup')}};
-function fakeImg(emo,c1,c2){const c=document.createElement('canvas');c.width=900;c.height=1100;const x=c.getContext('2d');const g=x.createLinearGradient(0,0,900,1100);g.addColorStop(0,c1);g.addColorStop(1,c2);x.fillStyle=g;x.fillRect(0,0,900,1100);
- for(let i=0;i<40;i++){x.fillStyle=`rgba(255,255,255,${Math.random()*.15})`;x.beginPath();x.arc(Math.random()*900,Math.random()*1100,20+Math.random()*90,0,6.283);x.fill()}
- x.font='320px serif';x.textAlign='center';x.textBaseline='middle';x.fillText(emo,450,560);return new Promise(r=>c.toBlob(r,'image/jpeg',.85))}
-$('#demoBtn').onclick=async()=>{toast('Adding demo memories…');const D=[['wedding',"A Friend's Wedding",'💐','2026-06-12','The best night and a dance we won’t forget',2],['wedding','Our Engagement Day','💍','2026-03-20','',3],['trips','Beach Drive','🚗','2026-07-04','Windows down, music up',2],['trips','Sunset Ride','🌅','2026-08-15','',1],['cafe','Morning Coffee','☕','2026-05-02','Our very first coffee together',1],['cafe','Late Night Talks','🥐','2026-09-10','We talked until they closed',3],['moments','Your Birthday','🎂','2026-04-18','',2],['moments','Just a Lovely Day','🌸','2026-10-01','',1]];
- for(const[ch,title,emo,date,note,n]of D){const g=CH[ch].g;const photos=[];for(let i=0;i<n;i++)photos.push(await fakeImg(emo,g[i%2],g[(i+1)%2]));const m={id:uid(),ch,title,date,note,photos,created:Date.now()};await DB.put(m);mems.push(m)}
- close();render();toast('Done! Swipe through the pages')};
+async function uploadMany(list,label){let k=0;for(const m of list){k++;toast(`${label} ${k}/${list.length}…`);
+  const photos=[];for(const p of m.photos||[]){const blob=typeof p==='string'?await fetch(p).then(r=>r.blob()):p;photos.push(await shrink(blob))}
+  if(!photos.length)continue;const mm={id:m.id||uid(),ch:CH[m.ch]?m.ch:'moments',title:m.title||'',date:m.date||today(),note:m.note||'',created:m.created||Date.now(),n:photos.length};
+  await Cloud.put(mm,photos);PH.set(mm.id,Promise.resolve(photos))}}
+$('#impFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());close();
+ await uploadMany(d.memories||[],'Restoring');toast('Memories restored ✨')}catch(err){toast('That file is not a valid backup')}};
+async function checkLocal(){await DB.open();let list=[];try{list=await DB.all()||[]}catch(e){}
+ const b=$('#migBtn');if(list.length&&!store.get('album.migrated',false)){b.hidden=false;b.textContent=`Upload ${list.length} ${list.length===1?'memory':'memories'} saved on this phone`;
+  b.onclick=async()=>{b.disabled=true;close();try{await uploadMany(list,'Uploading');store.set('album.migrated',true);b.hidden=true;toast('All set — now shared ✨')}catch(e){toast("Couldn't upload — try again");b.disabled=false}}}}
+
+/* ================= AUTH & SYNC ================= */
+let unsub=[],opened=false,member=false;
+function setCoverBtn(){$('#openBtn').textContent=auth.currentUser?'OPEN THE ALBUM':'SIGN IN WITH GOOGLE'}
+async function signIn(){const p=new GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+ try{await signInWithPopup(auth,p);return true}catch(e){
+  if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment'){await signInWithRedirect(auth,p);return false}
+  if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')toast("Couldn't sign in — try again");return false}}
+async function verifyMember(){try{await getDoc(doc(fdb,'meta','settings'));return true}catch(e){
+  if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');await signOut(auth);return false}return true}}
+function startSync(){unsub.forEach(f=>f());unsub=[];
+ unsub.push(onSnapshot(collection(fdb,'memories'),snap=>{mems=snap.docs.map(d=>Object.assign({id:d.id},d.data()));if(opened)render(true)},
+  e=>{if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');signOut(auth)}}));
+ unsub.push(onSnapshot(doc(fdb,'meta','settings'),s=>{if(s.exists()){settings=Object.assign(settings,s.data());store.set('album.settings.en',settings);header()}},()=>{}))}
+function openBook(){if(opened)return;opened=true;$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();setTimeout(()=>{$('#cover').style.display='none';render()},reduce?0:1200)}
+function closeBook(){opened=false;$('#app').hidden=true;$('#fab').hidden=true;close();const c=$('#cover');c.style.display='';c.classList.remove('open','gone')}
+$('#cover').onclick=async()=>{if(opened)return;
+ if(!auth.currentUser){const ok=await signIn();if(!ok)return}
+ if(!member){member=await verifyMember();if(!member)return;startSync()}
+ openBook()};
+$('#outBtn').onclick=async()=>{close();await signOut(auth)};
+onAuthStateChanged(auth,async u=>{setCoverBtn();$('#who').textContent=u?`Signed in as ${u.email}`:'';
+ if(!u){member=false;unsub.forEach(f=>f());unsub=[];mems=[];PH.clear();if(opened)closeBook();return}
+ if(!member){member=await verifyMember();if(member){startSync();checkLocal()}}});
+getRedirectResult(auth).catch(()=>{});
 
 /* ================= COVER & BOOT ================= */
 $('#bouquet').innerHTML=`<div class="b1">${S.rose}</div><div class="b2">${S.rose}</div><div class="b0">${S.rose}</div>`;
-let opened=false;
-$('#cover').onclick=()=>{if(opened)return;opened=true;$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();setTimeout(()=>{$('#cover').style.display='none';render()},reduce?0:1200)};
 addEventListener('resize',()=>{size();tabsUpdate();onScroll()});
-(async()=>{document.documentElement.dataset.theme=cur;size();header();tabs();deco();setAmbient(cur);loop();
- await DB.open();try{mems=await DB.all()||[]}catch(e){mems=[]}})();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+document.documentElement.dataset.theme=cur;size();header();tabs();deco();setAmbient(cur);loop();setCoverBtn();
 })();
 </script>
 </body>

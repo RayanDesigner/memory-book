@@ -192,6 +192,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .sheet h2{font-family:var(--serif);font-weight:700;font-size:30px;margin:0 0 12px}
 .drop{display:block;border:2px dashed var(--accent2);border-radius:18px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;margin-bottom:12px}
 #thumbs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#thumbs{max-height:220px;overflow-y:auto}
 #thumbs img{width:64px;height:64px;object-fit:cover;border-radius:10px;animation:pop .4s var(--spring)}
 #thumbs:not(:empty)+.drop-hint{display:block;margin-top:8px;font-size:13px}
 @keyframes pop{from{transform:scale(0)}}
@@ -225,6 +226,15 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
 @media (min-width:700px){.page{padding:20px 40px}}
 @media (max-width:600px){.page{padding-bottom:70px}#fab{width:52px;height:52px;right:16px}}
+@media (max-height:740px){
+ [data-theme=wedding] .deco{height:78px}.deco{height:50px}
+ .chap-art{transform:scale(.74);margin:-22px 0 -28px}
+ .chap h2{font-size:31px}.chap .line{font-size:22px;margin:2px 0 6px}.chap .count{margin:2px 0 8px}
+ .page{padding-top:8px;padding-bottom:62px}.leaf{padding:14px 14px 14px}
+ .cap{padding-top:8px}.cap h3{font-size:24px}.cap .note{font-size:17px;-webkit-line-clamp:2}
+ #fab{width:46px;height:46px;bottom:calc(80px + var(--safe-b));right:14px}#fab svg{width:22px;height:22px}
+ .tab{padding:5px 0 4px}.tabs{margin-bottom:calc(8px + var(--safe-b))}
+}
 @media (max-width:440px){.days{display:none}.top{justify-content:space-between}.names{flex:1;font-size:32px}}
 </style>
 </head>
@@ -262,7 +272,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 <div class="wrap" id="addWrap"><div class="sheet">
   <div class="grab"></div>
   <h2>New memory</h2>
-  <label class="drop"><input type="file" id="files" accept="image/*,video/*" multiple hidden><div id="thumbs"></div><span class="drop-hint">📷 Photos, GIFs or videos (up to 6)</span></label>
+  <label class="drop"><input type="file" id="files" accept="image/*,video/*" multiple hidden><div id="thumbs"></div><span class="drop-hint">📷 Photos, GIFs or videos (up to 50)</span></label>
   <span class="lbl">Which chapter?</span>
   <div class="chips" id="chips"></div>
   <input class="field" id="fTitle" placeholder="Memory title" maxlength="60">
@@ -396,24 +406,29 @@ async function putBlob(base,blob,prog){const buf=new Uint8Array(await blob.array
 async function getBlob(base,n,type){const parts=await Promise.all(Array.from({length:n},(_,i)=>getDoc(doc(fdb,...base,'parts',String(i))).then(s=>s.data().d)));
  const bin=atob(parts.join(''));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type})}
 const Cloud={
- async put(m,items,prog){for(let i=0;i<items.length;i++){const it=items[i],id=m.id+'_'+i;
-   if(it.kind==='img'){if(prog)prog(`${i+1}/${items.length}`);await setDoc(doc(fdb,'photos',id),{mid:m.id,i,data:it.data})}
-   else{const n=await putBlob(['photos',id],it.file,(k,t)=>prog&&prog(`${i+1}/${items.length} · ${Math.round(k/t*100)}%`));
-    await setDoc(doc(fdb,'photos',id),{mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n})}}
+ async put(m,items,prog){let done=0;const tick=()=>{done++;if(prog)prog(`${done}/${items.length}`)};
+  await pool(4,items.map((it,i)=>async()=>{const id=m.id+'_'+i;
+   if(it.kind==='img'){await setDoc(doc(fdb,'photos',id),{mid:m.id,i,data:it.data})}
+   else{const n=await putBlob(['photos',id],it.file);await setDoc(doc(fdb,'photos',id),{mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n})}
+   tick()}));
   await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:items.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
- async del(m){for(let i=0;i<(m.n||0);i++){const id=m.id+'_'+i;try{const s=await getDoc(doc(fdb,'photos',id));const d=s.exists()?s.data():null;
-   if(d&&d.parts)for(let j=0;j<d.parts;j++)await deleteDoc(doc(fdb,'photos',id,'parts',String(j)))}catch(e){}await deleteDoc(doc(fdb,'photos',id))}
+ async del(m){await pool(4,Array.from({length:m.n||0},(_,i)=>async()=>{const id=m.id+'_'+i;try{const s=await getDoc(doc(fdb,'photos',id));const d=s.exists()?s.data():null;
+   if(d&&d.parts)for(let j=0;j<d.parts;j++)await deleteDoc(doc(fdb,'photos',id,'parts',String(j)))}catch(e){}await deleteDoc(doc(fdb,'photos',id))}));
   await deleteDoc(doc(fdb,'memories',m.id))}};
-const PH=new Map();
+const PI=new Map();
+const PH={clear(){PI.clear()},delete(mid){for(const k of [...PI.keys()])if(k.startsWith(mid+'_'))PI.delete(k)},
+ set(mid,pr){pr.then(arr=>arr.forEach((it,i)=>PI.set(mid+'_'+i,Promise.resolve(it))))}};
 /* each item → {kind:'img'|'gif'|'video', url} */
-function loadPhotos(m){if(!PH.has(m.id)){const pr=Promise.all(Array.from({length:m.n||0},(_,i)=>getDoc(doc(fdb,'photos',m.id+'_'+i)).then(async s=>{
+function loadItem(m,i){const k=m.id+'_'+i;if(!PI.has(k)){const pr=getDoc(doc(fdb,'photos',k)).then(async s=>{
    if(!s.exists())return{kind:'img',url:''};const d=s.data();if(d.data)return{kind:'img',url:d.data};
-   const blob=await getBlob(['photos',m.id+'_'+i],d.parts,d.type);return{kind:d.kind||'img',url:URL.createObjectURL(blob)}})));
-  PH.set(m.id,pr);pr.catch(()=>PH.delete(m.id))}return PH.get(m.id)}
+   const blob=await getBlob(['photos',k],d.parts,d.type);return{kind:d.kind||'img',url:URL.createObjectURL(blob)}});
+  PI.set(k,pr);pr.catch(()=>PI.delete(k))}return PI.get(k)}
+function loadPhotos(m){return Promise.all(Array.from({length:m.n||0},(_,i)=>loadItem(m,i)))}
+async function pool(n,tasks){let i=0;const run=async()=>{while(i<tasks.length){const t=tasks[i++];await t()}};await Promise.all(Array.from({length:Math.min(n,tasks.length)},run))}
 function mediaEl(it){if(it.kind==='video'){const v=document.createElement('video');v.muted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.setAttribute('playsinline','');v.src=it.url;v.oncanplay=()=>v.classList.add('ok');return v}
  const im=document.createElement('img');im.alt='';im.onload=()=>im.classList.add('ok');im.src=it.url;return im}
 function fill(p){const m=mems.find(x=>x.id===p.dataset.id);if(!m||p._filled)return;p._filled=true;
- loadPhotos(m).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
+ Promise.all(Array.from({length:Math.min(3,m.n||0)},(_,i)=>loadItem(m,i))).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
    if(it.kind!=='img'){const t=document.createElement('i');t.className='mtag';t.textContent=it.kind==='video'?'▶':'GIF';ph.appendChild(t)}})).catch(()=>{p._filled=false})}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -471,7 +486,7 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  Array.from({length:np}).forEach((_,i)=>{const s=L[i];const pol=el('button','pol');
   pol.style.cssText=`left:${s.l}%;top:${s.t}%;width:${s.w}%;height:${s.h}%;--r:${s.r}deg;--d:${i*110}ms`;
   pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt=""></span>`;pol.onclick=()=>openViewer(m,i);col.appendChild(pol)});
- if((m.n||0)>3){const mo=el('button','more');mo.textContent='+'+(m.n-3);mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
+ if((m.n||0)>3){const mo=el('button','more');mo.textContent=`+${m.n-3} more`;mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
  const cap=el('div','cap');const h=el('h3');h.textContent=m.title||'A lovely memory';const dt=el('div','date');dt.textContent=fmt(m.date);cap.append(h,dt);
  if(m.note){const n=el('p','note');n.textContent=m.note;cap.appendChild(n)}leaf.appendChild(cap);
  const k=el('button','kebab');k.setAttribute('aria-label','Delete');k.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
@@ -524,21 +539,22 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clea
 let picked=[],pickCh=cur;
 function chips(){$('#chips').innerHTML=ORDER.map(k=>`<button class="chip${k===pickCh?' on':''}" data-k="${k}">${CH[k].short}</button>`).join('');
  $('#chips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{pickCh=c.dataset.k;chips()})}
-function openAdd(){picked=[];pickCh=cur;$('#thumbs').innerHTML='';$('#fTitle').value='';$('#fNote').value='';$('#fDate').value=today();$('#files').value='';chips();$('#addWrap').classList.add('on')}
+function openAdd(){picked=[];pickCh=cur;$('#thumbs').innerHTML='';$('#fTitle').value='';$('#fNote').value='';$('#fDate').value=today();$('#files').value='';chips();pickHint();$('#addWrap').classList.add('on')}
 $('#fab').onclick=openAdd;
 /* resize + compress until it fits comfortably in one Firestore document */
 async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(e){img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
- let max=1600,q=.82;const c=document.createElement('canvas'),x=c.getContext('2d');
+ let max=1440,q=.8;const c=document.createElement('canvas'),x=c.getContext('2d');
  for(let k=0;k<12;k++){const s=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);x.drawImage(img,0,0,c.width,c.height);
   const d=c.toDataURL('image/jpeg',q);if(d.length<880000)return d;if(q>.62)q-=.08;else max=Math.round(max*.82)}
  return c.toDataURL('image/jpeg',.5)}
-$('#files').onchange=async e=>{const fs=[...e.target.files].slice(0,6-picked.length);for(const f of fs){try{
+const MAXP=50;function pickHint(){$('.drop-hint').textContent=picked.length?`${picked.length} / ${MAXP} selected · tap to add more`:'📷 Photos, GIFs or videos (up to 50)'}
+$('#files').onchange=async e=>{const all=[...e.target.files];const fs=all.slice(0,MAXP-picked.length);if(all.length>fs.length)toast(`Only ${MAXP} per memory — added the first ${fs.length}`);let k=0;for(const f of fs){k++;$('.drop-hint').textContent=`Preparing ${k} / ${fs.length}…`;try{
   const isVid=(f.type||'').startsWith('video/'),isGif=f.type==='image/gif';
   if(isVid&&f.size>30*1024*1024){toast('Videos up to 30 MB please');continue}
   if(isGif&&f.size>8*1024*1024){toast('GIFs up to 8 MB please');continue}
   if(isVid||isGif){const u=URL.createObjectURL(f);picked.push({kind:isVid?'video':'gif',file:f,url:u});
    const t=isVid?el('video'):el('img');t.src=u;if(isVid){t.muted=true;t.playsInline=true;t.autoplay=true;t.loop=true}$('#thumbs').appendChild(t)}
-  else{const d=await shrink(f);picked.push({kind:'img',data:d,url:d});const i=el('img');i.src=d;$('#thumbs').appendChild(i)}}catch(err){}}};
+  else{const d=await shrink(f);picked.push({kind:'img',data:d,url:d});const i=el('img');i.src=d;$('#thumbs').appendChild(i)}}catch(err){}}pickHint();e.target.value=''};
 let saving=false;
 $('#saveBtn').onclick=async()=>{if(saving)return;if(!picked.length){toast('Pick at least one photo');return}
  const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),created:Date.now(),n:picked.length};
@@ -553,7 +569,7 @@ let vm=null,vi=0;
 async function showV(){const im=$('#vimg');const n=vm.n||0;
  $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;
  $('#vprev').style.visibility=vi>0?'visible':'hidden';$('#vnext').style.visibility=vi<n-1?'visible':'hidden';
- const want=vi,arr=await loadPhotos(vm);if(want!==vi)return;const it=arr[vi]||{kind:'img',url:''},vv=$('#vvid');
+ const want=vi;if(vi+1<n)loadItem(vm,vi+1);const it=(await loadItem(vm,vi))||{kind:'img',url:''};if(want!==vi)return;const vv=$('#vvid');
  if(it.kind==='video'){im.style.display='none';vv.style.display='block';vv.src=it.url;const p=vv.play();if(p&&p.catch)p.catch(()=>{});Music.duck(true)}
  else{vv.pause();vv.removeAttribute('src');vv.style.display='none';im.style.display='';Music.duck(false);im.classList.remove('kb');void im.offsetWidth;im.src=it.url;im.classList.add('kb')}}
 function openViewer(m,i){vm=m;vi=i;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}

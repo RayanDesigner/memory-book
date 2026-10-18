@@ -174,7 +174,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 @keyframes ouFloat{50%{transform:translateY(-8px) rotate(2deg)}}
 .ou.l{left:max(-34px,calc(50% - 215px - 18vw))}.ou.r{right:max(-34px,calc(50% - 215px - 18vw))}
 .ou.car{width:clamp(110px,30vw,230px)}
-@media (max-width:600px){.ou{width:24vw}.ou.l{left:-9vw}.ou.r{right:-9vw}.ou.car{width:38vw}.ou.car.l{left:-16vw}.ou.car.r{right:-16vw}}
+@media (max-width:380px),(max-height:800px){.chap .stk.couple{width:80px!important;bottom:-46px!important;left:-22px!important}}
+@media (max-width:600px){.ou.hide-m{display:none}.ou{width:24vw}.ou.l{left:-9vw}.ou.r{right:-9vw}.ou.car{width:38vw}.ou.car.l{left:-16vw}.ou.car.r{right:-16vw}}
 .garland{display:flex;justify-content:center;align-items:center;gap:2px;height:100%}
 .garland > div{width:40px;animation:sway 5s ease-in-out infinite;transform-origin:50% 100%}
 .garland > div.big{width:62px}
@@ -512,8 +513,8 @@ function outer(){const o=$('#outer');if(!o)return;o.innerHTML='';
  const spots=[['r','33%',9],['l','56%',7],['r','70%',-8]];let list=[];
  const W=setFor('wedding'),Tp=setFor('trips');
  if(cur==='wedding'&&W.length&&opened)list=spots.map((s,i)=>({cls:'',img:W[(i*3+1)%W.length],s}));
- else if(cur==='trips'&&opened){list=[{cls:'car',img:'car.webp',s:['l','15%',-4]},{cls:'car flip',img:'car.webp',s:['r','76%',3]}];
-  if(Tp.length)list.push({cls:'',img:Tp[0],s:['r','24%',8]},{cls:'',img:Tp[Math.min(3,Tp.length-1)],s:['l','45%',-7]},{cls:'',img:Tp[Math.min(5,Tp.length-1)],s:['r','52%',6]},{cls:'',img:Tp[Math.min(1,Tp.length-1)],s:['l','72%',-5]})}
+ else if(cur==='trips'&&opened){list=[{cls:'car hide-m',img:'car.webp',s:['l','16%',-4]},{cls:'car flip hide-m',img:'car.webp',s:['r','76%',3]}];
+  if(Tp.length)list.push({cls:'',img:Tp[0],s:['r','22%',8]},{cls:'',img:Tp[Math.min(3,Tp.length-1)],s:['l','36%',-7]},{cls:'',img:Tp[Math.min(5,Tp.length-1)],s:['r','52%',6]},{cls:'hide-m',img:Tp[Math.min(1,Tp.length-1)],s:['l','62%',-5]})}
  list.forEach((it,i)=>{const d=document.createElement('div');d.className=`ou ${it.s[0]} ${it.cls}`;d.style.top=it.s[1];d.style.setProperty('--r',it.s[2]+'deg');d.style.setProperty('--d',(i*700)+'ms');
   d.innerHTML=`<img src="${it.img}" alt=""${it.cls.includes('flip')?' style="transform:scaleX(-1)"':''}>`;o.appendChild(d);setTimeout(()=>d.classList.add('on'),120+i*160)})}
 function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const rs=[-6,12,-6,14];
@@ -521,8 +522,8 @@ function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const 
  <p class="kick">${c.num}</p><h2>${c.name}</h2><p class="line">${c.line}</p>
  <p class="count">${n?countTxt(n):'No memories here yet'}</p>
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
- if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-40px;right:-28px',8,600));
- if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(2,92,'bottom:-36px;right:-24px',7,600)+cpl(4,90,'bottom:-36px;left:-24px',-8,760));
+ if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-34px;left:-26px',-8,600));
+ if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(4,96,'bottom:-34px;left:-24px',-8,600));
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);
  const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];

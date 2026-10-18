@@ -78,7 +78,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 [data-theme=wedding] .leaf::before{content:"";position:absolute;inset:9px;border:1px solid var(--accent2);border-radius:3px 12px 12px 3px;pointer-events:none}
 [data-theme=wedding] .leaf::after{content:"";position:absolute;inset:13px;border:.5px solid rgba(184,149,90,.35);border-radius:2px 9px 9px 2px;pointer-events:none}
 [data-theme=trips] .leaf{background:linear-gradient(rgba(34,48,58,.05) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,rgba(34,48,58,.05) 1px,transparent 1px) 0 0/22px 22px,var(--paper)}
-[data-theme=cafe] .leaf{background:radial-gradient(circle at 14% 90%,transparent 30px,rgba(140,90,50,.13) 31px,rgba(140,90,50,.04) 35px,transparent 37px),var(--paper)}
+[data-theme=cafe] .leaf{background:var(--paper)}
 [data-theme=moments] .leaf{background:radial-gradient(rgba(212,104,126,.12) 1px,transparent 1.6px) 0 0/16px 16px,var(--paper)}
 
 .collage{position:relative;flex:1;min-height:0}
@@ -124,6 +124,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .chap-art .a1{width:80px;right:-6px;top:0}
 .chap-art .a2{width:100px;left:-10px;bottom:-6px}
 .chap-art .a3{width:66px;left:6px;top:4px}
+[data-theme=cafe] .chap-art .a3{width:92px;left:-14px;top:-6px}
 .kick{margin:0;font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--accent);font-weight:600}
 .chap h2{font-family:var(--serif);font-weight:700;font-size:40px;margin:6px 0 2px;line-height:1.05}
 .chap .line{font-family:var(--script);font-size:28px;margin:4px 0 10px;color:var(--accent)}
@@ -349,7 +350,7 @@ star:`<svg viewBox="0 0 80 80"><path d="M40 6L49 30L74 31L54 46L61 71L40 56L19 7
 letter:`<svg viewBox="0 0 100 70"><rect x="4" y="6" width="92" height="58" rx="6" fill="#fff" stroke="#d4687e" stroke-width="3"/><path d="M6 10L50 40L94 10" fill="none" stroke="#d4687e" stroke-width="3"/><path d="M50 52C42 46 40 42 42 39C44 36 48 36 50 39C52 36 56 36 58 39C60 42 58 46 50 52Z" fill="#ef6f8b"/></svg>`,
 love:badge('Love you','#d4687e','#fff',28)
 };
-S.rose='<img src="rose.webp" alt="" decoding="async">';S.bud='<img src="bud.webp" alt="" decoding="async">';S.ring='<img src="ring.webp" alt="" decoding="async">';
+S.rose='<img src="rose.webp" alt="" decoding="async">';S.bud='<img src="bud.webp" alt="" decoding="async">';S.ring='<img src="ring.webp" alt="" decoding="async">';S.pizza='<img src="pizza.webp" alt="" decoding="async">';
 const ICON={
 wedding:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 13c-3 0-5-2-5-5 0-2 2-4 5-4s5 2 5 4c0 3-2 5-5 5z"/><path d="M12 13v8M12 17c2-1 4-1 5-3M10 8c1-1 3-1 4 0"/></svg>',
 trips:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3l2-5h11l3 5h2v3"/><circle cx="7.5" cy="16.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M9.5 16.5h5M5 13h14"/></svg>',
@@ -359,7 +360,7 @@ moments:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width
 const CH={
 wedding:{num:'Chapter One',name:'Weddings & Celebrations',short:'Weddings',line:'Every joy has a home in our hearts',art:['rose','bud','ring','pearls'],stk:['rose','rose','bud','ring','pearls','leaf','congrats'],bg:'#f4ece0',g:['#f7efe2','#e9d9bd']},
 trips:{num:'Chapter Two',name:'Road Trips',short:'Trips',line:'Every road is better with you',art:['car','sign','shades','pin'],stk:['car','wheel','sign','pin','shades','ride'],bg:'#1d2730',g:['#ffb36b','#4a6a8a']},
-cafe:{num:'Chapter Three',name:'Café Dates',short:'Cafés',line:'Two cups, endless talks',art:['cup','beans','croissant','latte'],stk:['cup','togo','beans','croissant','latte','coffee'],bg:'#e6d5bd',g:['#e8d2b4','#8a5a3b']},
+cafe:{num:'Chapter Three',name:'Café Dates',short:'Cafés',line:'Two cups, endless talks',art:['cup','beans','croissant','pizza'],stk:['cup','togo','beans','croissant','pizza','coffee'],bg:'#e6d5bd',g:['#e8d2b4','#8a5a3b']},
 moments:{num:'Chapter Four',name:'Sweet Moments',short:'Moments',line:'Little things that became everything',art:['heart','camera','star','letter'],stk:['heart','camera','star','letter','love'],bg:'#fbeef0',g:['#fde2e7','#d4687e']}
 };
 const ORDER=['wedding','trips','cafe','moments'];

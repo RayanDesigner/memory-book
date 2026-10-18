@@ -90,6 +90,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .collage{position:relative;flex:1;min-height:0}
 .pol{position:absolute;background:#fff;box-shadow:0 10px 22px rgba(0,0,0,.2);padding:0;transform:rotate(var(--r))}
 .pol .ph{position:absolute;inset:8px 8px 30px 8px;overflow:hidden;background:#eee}
+.pol .ph>img,.pol .ph>video{position:absolute;inset:0;transition:opacity 1.1s ease}
 .pol img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .6s}
 .pol img.ok,.pol video.ok{opacity:1}
 .pol video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .6s}
@@ -214,14 +215,18 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 @keyframes fade{from{opacity:0}}
 .vstage{width:100%;flex:1;display:grid;place-items:center;overflow:hidden;padding:60px 14px 10px}
 #vimg{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
-#vimg.kb{animation:kb 8s ease-out forwards}
-@keyframes kb{from{transform:scale(.92);opacity:0}12%{opacity:1}to{transform:scale(1.05)}}
+#vimg.kb{animation:kb 5.5s ease-out forwards}
+@keyframes kb{from{transform:scale(.95);opacity:0}10%{opacity:1}to{transform:scale(1.07)}}
 .vcap{color:#f3e7d6;text-align:center;padding:10px 20px calc(24px + var(--safe-b))}
 .vcap b{display:block;font-family:var(--serif);font-weight:700;font-size:26px}
 .vcap span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 .vx{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:20px;z-index:2}
 .vp{position:absolute;top:50%;width:44px;height:44px;margin-top:-22px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:26px;z-index:2}
 .vprev{left:10px}.vnext{right:10px}
+.vplay{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:66px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;z-index:2;display:grid;place-items:center}
+.vplay svg{width:18px;height:18px}
+.vbar{position:absolute;left:16px;right:16px;top:calc(4px + env(safe-area-inset-top,0px));height:2px;background:rgba(255,255,255,.18);border-radius:2px;overflow:hidden;z-index:2}
+.vbar i{display:block;height:100%;width:0;background:rgba(255,255,255,.85)}
 .toast{position:fixed;left:50%;bottom:calc(160px + var(--safe-b));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.4s var(--ease);z-index:70;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1;transform:translateX(-50%)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
@@ -304,6 +309,8 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 
 <div id="viewer">
   <button class="vx" id="vx">✕</button>
+  <button class="vplay" id="vplay" aria-label="Pause slideshow"></button>
+  <div class="vbar"><i id="vbar"></i></div>
   <button class="vp vprev" id="vprev">‹</button>
   <button class="vp vnext" id="vnext">›</button>
   <div class="vstage"><img id="vimg" alt=""><video id="vvid" controls playsinline></video></div>
@@ -428,6 +435,17 @@ function loadPhotos(m){return Promise.all(Array.from({length:m.n||0},(_,i)=>load
 async function pool(n,tasks){let i=0;const run=async()=>{while(i<tasks.length){const t=tasks[i++];await t()}};await Promise.all(Array.from({length:Math.min(n,tasks.length)},run))}
 function mediaEl(it){if(it.kind==='video'){const v=document.createElement('video');v.muted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.setAttribute('playsinline','');v.src=it.url;v.oncanplay=()=>v.classList.add('ok');return v}
  const im=document.createElement('img');im.alt='';im.onload=()=>im.classList.add('ok');im.src=it.url;return im}
+/* rotate the polaroids through every item of the memory on screen */
+let rotTick=0;
+setInterval(()=>{if(!opened||document.hidden||$('#viewer').classList.contains('on'))return;
+ const b=$('#book');const idx=Math.round(Math.abs(b.scrollLeft)/(b.clientWidth||1));const p=b.children[idx];if(!p||!p.dataset.id||!p._filled)return;
+ const m=mems.find(x=>x.id===p.dataset.id);if(!m||(m.n||0)<=3)return;
+ const slots=[...p.querySelectorAll('.pol .ph')];if(!slots.length)return;
+ p._next=p._next==null?slots.length:p._next;const slot=slots[rotTick++%slots.length];const i=p._next;p._next=(p._next+1)%m.n;
+ loadItem(m,i).then(it=>{if(!it||!it.url)return;const old=[...slot.children].filter(c=>c.tagName==='IMG'||c.tagName==='VIDEO');const ne=mediaEl(it);ne.classList.remove('ok');ne.style.opacity='0';slot.insertBefore(ne,slot.querySelector('.mtag'));
+  const show=()=>{requestAnimationFrame(()=>{ne.style.opacity='1';setTimeout(()=>old.forEach(o=>o.remove()),1200)})};if(it.kind==='video')ne.oncanplay=show;else ne.onload=show;
+  const tag=slot.querySelector('.mtag');if(tag)tag.textContent=it.kind==='video'?'▶':it.kind==='gif'?'GIF':'';if(tag&&it.kind==='img')tag.remove();
+  slot.dataset.i=i})},3200);
 function fill(p){const m=mems.find(x=>x.id===p.dataset.id);if(!m||p._filled)return;p._filled=true;
  Promise.all(Array.from({length:Math.min(3,m.n||0)},(_,i)=>loadItem(m,i))).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
    if(it.kind!=='img'){const t=document.createElement('i');t.className='mtag';t.textContent=it.kind==='video'?'▶':'GIF';ph.appendChild(t)}})).catch(()=>{p._filled=false})}
@@ -486,7 +504,7 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];
  Array.from({length:np}).forEach((_,i)=>{const s=L[i];const pol=el('button','pol');
   pol.style.cssText=`left:${s.l}%;top:${s.t}%;width:${s.w}%;height:${s.h}%;--r:${s.r}deg;--d:${i*110}ms`;
-  pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt=""></span>`;pol.onclick=()=>openViewer(m,i);col.appendChild(pol)});
+  pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt=""></span>`;pol.onclick=()=>{const ph=pol.querySelector('.ph');openViewer(m,ph&&ph.dataset.i!=null?+ph.dataset.i:i)};col.appendChild(pol)});
  if((m.n||0)>3){const mo=el('button','more');mo.textContent=`+${m.n-3} more`;mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
  const cap=el('div','cap');const h=el('h3');h.dir='auto';h.textContent=m.title||'A lovely memory';const dt=el('div','date');dt.textContent=fmt(m.date);cap.append(h,dt);
  if(m.note){const n=el('p','note');n.dir='auto';n.textContent=m.note;cap.appendChild(n)}leaf.appendChild(cap);
@@ -581,15 +599,22 @@ $('#saveBtn').onclick=async()=>{if(saving)return;
 
 /* ================= VIEWER ================= */
 let vm=null,vi=0;
-async function showV(){const im=$('#vimg');const n=vm.n||0;
+const SLIDE=4200;let vTimer=null,vAuto=true;
+const IC_PAUSE='<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',IC_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+function vStop(){clearTimeout(vTimer);vTimer=null;const b=$('#vbar');b.style.transition='none';b.style.width='0'}
+function vArm(ms){vStop();if(!vAuto||(vm.n||0)<2)return;const b=$('#vbar');void b.offsetWidth;b.style.transition=`width ${ms}ms linear`;b.style.width='100%';vTimer=setTimeout(()=>{vi=(vi+1)%(vm.n||1);showV()},ms)}
+function vUI(){$('#vplay').innerHTML=vAuto?IC_PAUSE:IC_PLAY;$('#vplay').hidden=(vm&&(vm.n||0)<2)}
+async function showV(){const im=$('#vimg');const n=vm.n||0;vStop();vUI();
  $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;
- $('#vprev').style.visibility=vi>0?'visible':'hidden';$('#vnext').style.visibility=vi<n-1?'visible':'hidden';
- const want=vi;if(vi+1<n)loadItem(vm,vi+1);const it=(await loadItem(vm,vi))||{kind:'img',url:''};if(want!==vi)return;const vv=$('#vvid');
- if(it.kind==='video'){im.style.display='none';vv.style.display='block';vv.src=it.url;const p=vv.play();if(p&&p.catch)p.catch(()=>{});Music.duck(true)}
- else{vv.pause();vv.removeAttribute('src');vv.style.display='none';im.style.display='';Music.duck(false);im.classList.remove('kb');void im.offsetWidth;im.src=it.url;im.classList.add('kb')}}
-function openViewer(m,i){vm=m;vi=i;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}
-$('#vx').onclick=()=>{const vv=$('#vvid');vv.pause();vv.removeAttribute('src');$('#viewer').classList.remove('on');Music.duck(false)};
-$('#vprev').onclick=()=>{if(vi>0){vi--;showV()}};$('#vnext').onclick=()=>{if(vi<(vm.n||0)-1){vi++;showV()}};
+ $('#vprev').style.visibility=n>1?'visible':'hidden';$('#vnext').style.visibility=n>1?'visible':'hidden';
+ const want=vi;if(n>1)loadItem(vm,(vi+1)%n);const it=(await loadItem(vm,vi))||{kind:'img',url:''};if(want!==vi)return;const vv=$('#vvid');
+ if(it.kind==='video'){im.style.display='none';vv.style.display='block';vv.src=it.url;vv.onended=()=>{if(vAuto&&n>1){vi=(vi+1)%n;showV()}};const p=vv.play();if(p&&p.catch)p.catch(()=>{});Music.duck(true)}
+ else{vv.pause();vv.removeAttribute('src');vv.style.display='none';im.style.display='';Music.duck(false);im.classList.remove('kb');void im.offsetWidth;im.src=it.url;im.classList.add('kb');vArm(it.kind==='gif'?SLIDE+1800:SLIDE)}}
+function openViewer(m,i){vm=m;vi=i;vAuto=true;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}
+$('#vx').onclick=()=>{vStop();const vv=$('#vvid');vv.pause();vv.removeAttribute('src');$('#viewer').classList.remove('on');Music.duck(false)};
+$('#vprev').onclick=()=>{const n=vm.n||1;vi=(vi-1+n)%n;showV()};$('#vnext').onclick=()=>{vi=(vi+1)%(vm.n||1);showV()};
+$('#vplay').onclick=()=>{vAuto=!vAuto;vUI();if(vAuto){const vv=$('#vvid');if(vv.style.display!=='block')vArm(SLIDE)}else vStop()};
+$('#vimg').onclick=()=>$('#vplay').click();
 let sx=0;$('#viewer').addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
 $('#viewer').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50){dx<0?$('#vnext').click():$('#vprev').click()}});
 

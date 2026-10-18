@@ -107,6 +107,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .cap h3{font-family:var(--serif);font-weight:700;font-size:28px;margin:0;line-height:1.15}
 .cap .date{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-top:4px}
 .cap .note{font-family:var(--serif);font-style:italic;font-size:19px;margin:6px 0 0;line-height:1.35;color:var(--ink);opacity:.85;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.kebab.edit{right:48px}
 .kebab{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--muted);z-index:5}
 
 /* stickers: die-cut look */
@@ -271,13 +272,13 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 
 <div class="wrap" id="addWrap"><div class="sheet">
   <div class="grab"></div>
-  <h2>New memory</h2>
+  <h2 id="addTitle">New memory</h2>
   <label class="drop"><input type="file" id="files" accept="image/*,video/*" multiple hidden><div id="thumbs"></div><span class="drop-hint">📷 Photos, GIFs or videos (up to 50)</span></label>
   <span class="lbl">Which chapter?</span>
   <div class="chips" id="chips"></div>
-  <input class="field" id="fTitle" placeholder="Memory title" maxlength="60">
+  <input class="field" dir="auto" id="fTitle" placeholder="Memory title" maxlength="60">
   <input class="field" id="fDate" type="date">
-  <textarea class="field" id="fNote" placeholder="What happened? A few words…" maxlength="400"></textarea>
+  <textarea class="field" dir="auto" id="fNote" placeholder="What happened? A few words…" maxlength="400"></textarea>
   <button class="btn full" id="saveBtn">Save memory</button>
 </div></div>
 
@@ -406,12 +407,12 @@ async function putBlob(base,blob,prog){const buf=new Uint8Array(await blob.array
 async function getBlob(base,n,type){const parts=await Promise.all(Array.from({length:n},(_,i)=>getDoc(doc(fdb,...base,'parts',String(i))).then(s=>s.data().d)));
  const bin=atob(parts.join(''));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type})}
 const Cloud={
- async put(m,items,prog){let done=0;const tick=()=>{done++;if(prog)prog(`${done}/${items.length}`)};
-  await pool(4,items.map((it,i)=>async()=>{const id=m.id+'_'+i;
+ async put(m,items,prog,off=0){let done=0;const tick=()=>{done++;if(prog)prog(`${done}/${items.length}`)};
+  await pool(4,items.map((it,j)=>async()=>{const i=off+j,id=m.id+'_'+i;
    if(it.kind==='img'){await setDoc(doc(fdb,'photos',id),{mid:m.id,i,data:it.data})}
    else{const n=await putBlob(['photos',id],it.file);await setDoc(doc(fdb,'photos',id),{mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n})}
    tick()}));
-  await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:items.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
+  await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:off+items.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
  async del(m){await pool(4,Array.from({length:m.n||0},(_,i)=>async()=>{const id=m.id+'_'+i;try{const s=await getDoc(doc(fdb,'photos',id));const d=s.exists()?s.data():null;
    if(d&&d.parts)for(let j=0;j<d.parts;j++)await deleteDoc(doc(fdb,'photos',id,'parts',String(j)))}catch(e){}await deleteDoc(doc(fdb,'photos',id))}));
   await deleteDoc(doc(fdb,'memories',m.id))}};
@@ -487,10 +488,11 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
   pol.style.cssText=`left:${s.l}%;top:${s.t}%;width:${s.w}%;height:${s.h}%;--r:${s.r}deg;--d:${i*110}ms`;
   pol.innerHTML=`<span class="tape"></span><span class="ph"><img alt=""></span>`;pol.onclick=()=>openViewer(m,i);col.appendChild(pol)});
  if((m.n||0)>3){const mo=el('button','more');mo.textContent=`+${m.n-3} more`;mo.onclick=()=>openViewer(m,3);col.appendChild(mo)}
- const cap=el('div','cap');const h=el('h3');h.textContent=m.title||'A lovely memory';const dt=el('div','date');dt.textContent=fmt(m.date);cap.append(h,dt);
- if(m.note){const n=el('p','note');n.textContent=m.note;cap.appendChild(n)}leaf.appendChild(cap);
+ const cap=el('div','cap');const h=el('h3');h.dir='auto';h.textContent=m.title||'A lovely memory';const dt=el('div','date');dt.textContent=fmt(m.date);cap.append(h,dt);
+ if(m.note){const n=el('p','note');n.dir='auto';n.textContent=m.note;cap.appendChild(n)}leaf.appendChild(cap);
  const k=el('button','kebab');k.setAttribute('aria-label','Delete');k.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
  k.onclick=async()=>{if(confirm('Delete this memory?')){try{await Cloud.del(m);mems=mems.filter(x=>x.id!==m.id);PH.delete(m.id);render(true);toast('Memory deleted')}catch(e){toast("Couldn't delete — try again")}}};leaf.appendChild(k);
+ const ed=el('button','kebab edit');ed.setAttribute('aria-label','Edit');ed.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';ed.onclick=()=>openEdit(m);leaf.appendChild(ed);
  const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.slice();const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
@@ -539,7 +541,10 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clea
 let picked=[],pickCh=cur;
 function chips(){$('#chips').innerHTML=ORDER.map(k=>`<button class="chip${k===pickCh?' on':''}" data-k="${k}">${CH[k].short}</button>`).join('');
  $('#chips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{pickCh=c.dataset.k;chips()})}
-function openAdd(){picked=[];pickCh=cur;$('#thumbs').innerHTML='';$('#fTitle').value='';$('#fNote').value='';$('#fDate').value=today();$('#files').value='';chips();pickHint();$('#addWrap').classList.add('on')}
+let editM=null;
+function sheetMode(){$('#addTitle').textContent=editM?'Edit memory':'New memory';$('#saveBtn').textContent=editM?'Save changes':'Save memory'}
+function openEdit(m){editM=m;picked=[];pickCh=m.ch;$('#thumbs').innerHTML='';$('#fTitle').value=m.title||'';$('#fNote').value=m.note||'';$('#fDate').value=m.date||today();$('#files').value='';chips();sheetMode();pickHint();$('#addWrap').classList.add('on')}
+function openAdd(){editM=null;sheetMode();picked=[];pickCh=cur;$('#thumbs').innerHTML='';$('#fTitle').value='';$('#fNote').value='';$('#fDate').value=today();$('#files').value='';chips();pickHint();$('#addWrap').classList.add('on')}
 $('#fab').onclick=openAdd;
 /* resize + compress until it fits comfortably in one Firestore document */
 async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(e){img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
@@ -547,8 +552,10 @@ async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(
  for(let k=0;k<12;k++){const s=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);x.drawImage(img,0,0,c.width,c.height);
   const d=c.toDataURL('image/jpeg',q);if(d.length<880000)return d;if(q>.62)q-=.08;else max=Math.round(max*.82)}
  return c.toDataURL('image/jpeg',.5)}
-const MAXP=50;function pickHint(){$('.drop-hint').textContent=picked.length?`${picked.length} / ${MAXP} selected · tap to add more`:'📷 Photos, GIFs or videos (up to 50)'}
-$('#files').onchange=async e=>{const all=[...e.target.files];const fs=all.slice(0,MAXP-picked.length);if(all.length>fs.length)toast(`Only ${MAXP} per memory — added the first ${fs.length}`);let k=0;for(const f of fs){k++;$('.drop-hint').textContent=`Preparing ${k} / ${fs.length}…`;try{
+const MAXP=50;const room=()=>MAXP-(editM?(editM.n||0):0);
+function pickHint(){const h=$('.drop-hint');if(editM){const r=room();h.textContent=r<=0?`This memory is full (${MAXP} items)`:picked.length?`${picked.length} new · ${(editM.n||0)+picked.length} / ${MAXP} total · tap to add more`:`📷 Add more to this memory (has ${editM.n||0}, room for ${r})`}
+ else h.textContent=picked.length?`${picked.length} / ${MAXP} selected · tap to add more`:'📷 Photos, GIFs or videos (up to 50)'}
+$('#files').onchange=async e=>{const all=[...e.target.files];const fs=all.slice(0,Math.max(0,room()-picked.length));if(all.length>fs.length)toast(fs.length?`Only ${MAXP} per memory — added the first ${fs.length}`:`This memory already has ${MAXP} items`);let k=0;for(const f of fs){k++;$('.drop-hint').textContent=`Preparing ${k} / ${fs.length}…`;try{
   const isVid=(f.type||'').startsWith('video/'),isGif=f.type==='image/gif';
   if(isVid&&f.size>30*1024*1024){toast('Videos up to 30 MB please');continue}
   if(isGif&&f.size>8*1024*1024){toast('GIFs up to 8 MB please');continue}
@@ -556,7 +563,15 @@ $('#files').onchange=async e=>{const all=[...e.target.files];const fs=all.slice(
    const t=isVid?el('video'):el('img');t.src=u;if(isVid){t.muted=true;t.playsInline=true;t.autoplay=true;t.loop=true}$('#thumbs').appendChild(t)}
   else{const d=await shrink(f);picked.push({kind:'img',data:d,url:d});const i=el('img');i.src=d;$('#thumbs').appendChild(i)}}catch(err){}}pickHint();e.target.value=''};
 let saving=false;
-$('#saveBtn').onclick=async()=>{if(saving)return;if(!picked.length){toast('Pick at least one photo');return}
+$('#saveBtn').onclick=async()=>{if(saving)return;
+ if(editM){const e=editM,off=e.n||0;const m=Object.assign({},e,{ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim()});
+  saving=true;$('#saveBtn').textContent=picked.length?'Uploading…':'Saving…';
+  try{await Cloud.put(m,picked,t=>{$('#saveBtn').textContent=`Uploading ${t}…`},off)}catch(err){saving=false;sheetMode();toast("Couldn't save — check your connection");return}
+  picked.forEach((it,j)=>PI.set(m.id+'_'+(off+j),Promise.resolve({kind:it.kind,url:it.url})));
+  m.n=off+picked.length;const ix=mems.findIndex(x=>x.id===m.id);if(ix>=0)mems[ix]=m;saving=false;editM=null;sheetMode();close();
+  const moved=m.ch!==cur;if(moved)switchCh(m.ch);else{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p._filled=false;render(true)}
+  toast(picked.length?`Added ${picked.length} ✨`:'Saved ✨');return}
+ if(!picked.length){toast('Pick at least one photo');return}
  const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),created:Date.now(),n:picked.length};
  saving=true;$('#saveBtn').textContent='Uploading…';
  try{await Cloud.put(m,picked,t=>{$('#saveBtn').textContent=`Uploading ${t}…`})}catch(e){saving=false;$('#saveBtn').textContent='Save memory';toast("Couldn't upload — check your connection");return}

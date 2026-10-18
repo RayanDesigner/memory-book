@@ -312,7 +312,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
     <label class="btn ghost" style="flex:1">Import<input type="file" id="impFile" accept="application/json" hidden></label>
   </div>
   <label class="btn ghost full" style="margin-top:10px" id="musLbl">Set music for this chapter<input type="file" id="musFile" accept="audio/*" hidden></label>
-  <label class="btn ghost full" style="margin-top:10px">Add couple stickers<input type="file" id="stkFile" accept="image/*" multiple hidden></label>
+  <label class="btn ghost full" style="margin-top:10px" id="stkLbl">Add stickers to this chapter<input type="file" id="stkFile" accept="image/*" multiple hidden></label>
   <label class="btn ghost full" style="margin-top:10px">Change cover photo<input type="file" id="coverFile" accept="image/*" hidden></label>
   <button class="btn ghost full" id="migBtn" style="margin-top:10px" hidden></button>
   <span class="hint" id="who" style="margin-top:14px;text-align:center"></span>
@@ -506,12 +506,14 @@ function deco(){const d=$('#deco');
  else if(cur==='cafe')d.innerHTML=`<div class="cafe-strip"><div class="b">${S.beans}</div><div class="cup"><div class="steam"><span></span><span></span><span></span></div>${S.cup}</div><div class="b" style="width:46px">${S.croissant}</div></div>`;
  else d.innerHTML=`<div class="hearts"><div>${S.heart}</div><div>${S.heart}</div><div>${S.heart}</div></div>`}
 const countTxt=n=>n===1?'1 memory':`${n} memories`;
-let COUPLE=[];
-const cpl=(seed,w,style,r,d)=>COUPLE.length?`<div class="stk couple" style="${style};width:${w}px;--r:${r}deg;--d:${d}ms"><img src="${COUPLE[seed%COUPLE.length]}" alt=""></div>`:'';
+let STK={};const setFor=ch=>STK[ch]||[];
+const cpl=(seed,w,style,r,d,ch=cur)=>{const L=setFor(ch);return L.length?`<div class="stk couple" style="${style};width:${w}px;--r:${r}deg;--d:${d}ms"><img src="${L[seed%L.length]}" alt=""></div>`:''};
 function outer(){const o=$('#outer');if(!o)return;o.innerHTML='';
  const spots=[['l','18%',-10],['r','33%',9],['l','56%',7],['r','70%',-8]];let list=[];
- if(cur==='wedding'&&COUPLE.length&&opened)list=spots.map((s,i)=>({cls:'',img:COUPLE[(i*3+1)%COUPLE.length],s}));
- else if(cur==='trips'&&opened)list=[{cls:'car',img:'car.webp',s:['l','24%',-4]},{cls:'car flip',img:'car.webp',s:['r','64%',3]}];
+ const W=setFor('wedding'),Tp=setFor('trips');
+ if(cur==='wedding'&&W.length&&opened)list=spots.map((s,i)=>({cls:'',img:W[(i*3+1)%W.length],s}));
+ else if(cur==='trips'&&opened){list=[{cls:'car',img:'car.webp',s:['l','15%',-4]},{cls:'car flip',img:'car.webp',s:['r','76%',3]}];
+  if(Tp.length)list.push({cls:'',img:Tp[0],s:['r','24%',8]},{cls:'',img:Tp[Math.min(3,Tp.length-1)],s:['l','45%',-7]},{cls:'',img:Tp[Math.min(5,Tp.length-1)],s:['r','52%',6]},{cls:'',img:Tp[Math.min(1,Tp.length-1)],s:['l','72%',-5]})}
  list.forEach((it,i)=>{const d=document.createElement('div');d.className=`ou ${it.s[0]} ${it.cls}`;d.style.top=it.s[1];d.style.setProperty('--r',it.s[2]+'deg');d.style.setProperty('--d',(i*700)+'ms');
   d.innerHTML=`<img src="${it.img}" alt=""${it.cls.includes('flip')?' style="transform:scaleX(-1)"':''}>`;o.appendChild(d);setTimeout(()=>d.classList.add('on'),120+i*160)})}
 function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const rs=[-6,12,-6,14];
@@ -520,6 +522,7 @@ function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const 
  <p class="count">${n?countTxt(n):'No memories here yet'}</p>
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
  if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-40px;right:-28px',8,600)+cpl(4,92,'top:-22px;left:-22px',-10,760));
+ if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(2,92,'bottom:-36px;right:-24px',7,600)+cpl(4,90,'bottom:-36px;left:-24px',-8,760));
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);
  const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];
@@ -532,11 +535,11 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  const k=el('button','kebab');k.setAttribute('aria-label','Delete');k.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
  k.onclick=async()=>{if(confirm('Delete this memory?')){try{await Cloud.del(m);mems=mems.filter(x=>x.id!==m.id);PH.delete(m.id);render(true);toast('Memory deleted')}catch(e){toast("Couldn't delete — try again")}}};leaf.appendChild(k);
  const ed=el('button','kebab edit');ed.setAttribute('aria-label','Edit');ed.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';ed.onclick=()=>openEdit(m);leaf.appendChild(ed);
- const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.filter((_,i)=>!(m.ch==='wedding'&&i===0));const n=2+Math.floor(r()*2);let html='';
+ const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.filter((_,i)=>!((m.ch==='wedding'||m.ch==='trips')&&i===0));const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
  if(m.ch==='cafe')html+=stk('pizza','bottom:22px;right:-16px',12,420,74);
- if(m.ch==='wedding'){let h=0;for(const c of m.id)h=(h*31+c.charCodeAt(0))>>>0;html+=cpl(h,100,'top:-30px;left:-26px',(h%14)-7,520)}
+ if(m.ch==='wedding'||m.ch==='trips'){let h=0;for(const c of m.id)h=(h*31+c.charCodeAt(0))>>>0;html+=cpl(h,m.ch==='trips'?92:100,'top:-30px;left:-26px',(h%14)-7,520,m.ch)}
  leaf.insertAdjacentHTML('beforeend',html);return p}
 let io;
 let near;
@@ -667,7 +670,7 @@ async function verifyMember(){try{await Promise.race([getDocFromServer(doc(fdb,'
 function startSync(){unsub.forEach(f=>f());unsub=[];
  unsub.push(onSnapshot(collection(fdb,'memories'),snap=>{mems=snap.docs.map(d=>Object.assign({id:d.id},d.data()));if(opened)render(true)},
   e=>{if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');signOut(auth)}}));
- unsub.push(onSnapshot(collection(fdb,'stickers'),snap=>{COUPLE=snap.docs.sort((a,b)=>a.id<b.id?-1:1).map(d=>d.data().data).filter(Boolean);if(opened){render(true);outer()}},()=>{}));
+ unsub.push(onSnapshot(collection(fdb,'stickers'),snap=>{STK={};snap.docs.sort((a,b)=>a.id<b.id?-1:1).forEach(d=>{const x=d.data();if(!x.data)return;const c=x.ch||'wedding';(STK[c]=STK[c]||[]).push(x.data)});if(opened){render(true);outer()}},()=>{}));
  unsub.push(onSnapshot(collection(fdb,'music'),snap=>{for(const k of Object.keys(CLOUDMUS))delete CLOUDMUS[k];snap.docs.forEach(d=>{CLOUDMUS[d.id]=d.data()});
   Object.keys(CLOUDMUS).forEach(ch=>{const p=loadTrack(ch);if(p)p.then(u=>{MUSURL[ch+':'+CLOUDMUS[ch].v]=u})});Music.ui()},()=>{}));
  unsub.push(onSnapshot(doc(fdb,'meta','cover'),s=>{if(s.exists()){const d=s.data().data;setCover(d);try{localStorage.setItem('album.cover',d)}catch(e){}}},()=>{}));
@@ -718,7 +721,7 @@ const Music={a:new Audio(),ctx:null,gain:null,muted:!!store.get('album.muted',fa
 $('#sndBtn').onclick=()=>Music.toggle();
 Music.a.addEventListener('timeupdate',()=>{const a=Music.a;if(!a.duration||a.paused||Music._out)return;if(a.duration-a.currentTime<3){Music._out=true;Music.level(0,2800)}});
 Music.a.addEventListener('ended',()=>{Music._out=false;if(!opened||Music.muted||!hasTrack(cur))return;Music.a.currentTime=0;const p=Music.a.play();if(p&&p.catch)p.catch(()=>{});Music.level(Music._duck?0.04:VOL,3000)});
-function musLabel(){$('#musLbl').firstChild.textContent=`Set music for “${CH[cur].short}”`}
+function musLabel(){$('#musLbl').firstChild.textContent=`Set music for “${CH[cur].short}”`;$('#stkLbl').firstChild.textContent=`Add stickers to “${CH[cur].short}”`}
 $('#musFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const ch=cur;close();
  if(f.size>12*1024*1024){toast('That song is too big (max 12 MB)');return}
  try{const buf=new Uint8Array(await f.arrayBuffer());const CH_=675000;const n=Math.ceil(buf.length/CH_);
@@ -733,7 +736,7 @@ function setCover(d){if(!d)return;const im=$('#coverPhoto');im.onload=()=>{im.cl
 try{setCover(localStorage.getItem('album.cover'))}catch(e){}
 $('#stkFile').onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;close();let k=0;
  for(const f of fs){k++;toast(`Adding sticker ${k}/${fs.length}…`);try{const d=await b2d(f);if(d.length>880000){toast('Sticker too big');continue}
-  await setDoc(doc(fdb,'stickers',String(Date.now())+'_'+k),{data:d})}catch(err){toast("Couldn't add sticker");return}}toast('Stickers added ✨');e.target.value=''};
+  await setDoc(doc(fdb,'stickers',String(Date.now())+'_'+k),{data:d,ch:cur})}catch(err){toast("Couldn't add sticker");return}}toast('Stickers added ✨');e.target.value=''};
 $('#coverFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;close();toast('Uploading cover photo…');try{const d=await shrink(f);await setDoc(doc(fdb,'meta','cover'),{data:d});toast('Cover updated ✨')}catch(err){toast("Couldn't update the cover")}};
 addEventListener('resize',()=>{size();tabsUpdate();onScroll()});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}

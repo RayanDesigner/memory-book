@@ -58,6 +58,12 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
   text-shadow:0 1px 0 rgba(255,255,255,.9);animation:breathe 3.2s ease-in-out infinite}
 @keyframes breathe{50%{border-color:rgba(133,120,103,.85);box-shadow:0 0 0 6px rgba(133,120,103,.06)}}
 
+[hidden]{display:none!important}
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 26px;border-radius:999px;font-weight:600;font-size:15px;letter-spacing:.02em;background:var(--accent);color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.18);transition:transform .2s;cursor:pointer;text-align:center}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent)}
+
 /* ===== APP ===== */
 #app{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 #app[hidden]{display:none}
@@ -218,6 +224,8 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 .toast.on{opacity:1;transform:translateX(-50%)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
 @media (min-width:700px){.page{padding:20px 40px}}
+@media (max-width:600px){.page{padding-bottom:70px}#fab{width:52px;height:52px;right:16px}}
+@media (max-width:440px){.days{display:none}.top{justify-content:space-between}.names{flex:1;font-size:32px}}
 </style>
 </head>
 <body>
@@ -360,7 +368,7 @@ moments:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width
 const CH={
 wedding:{num:'Chapter One',name:'Weddings & Celebrations',short:'Weddings',line:'Every joy has a home in our hearts',art:['rose','bud','ring','pearls'],stk:['rose','rose','bud','ring','pearls','leaf','congrats'],bg:'#f4ece0',g:['#f7efe2','#e9d9bd']},
 trips:{num:'Chapter Two',name:'Road Trips',short:'Trips',line:'Every road is better with you',art:['car','sign','shades','pin'],stk:['car','wheel','sign','pin','shades','ride'],bg:'#1d2730',g:['#ffb36b','#4a6a8a']},
-cafe:{num:'Chapter Three',name:'Café Dates',short:'Cafés',line:'Two cups, endless talks',art:['cup','beans','croissant','pizza'],stk:['cup','togo','beans','croissant','pizza','coffee'],bg:'#e6d5bd',g:['#e8d2b4','#8a5a3b']},
+cafe:{num:'Chapter Three',name:'Café Dates',short:'Cafés',line:'Two cups, endless talks',art:['cup','beans','croissant','pizza'],stk:['cup','togo','beans','croissant','coffee'],bg:'#e6d5bd',g:['#e8d2b4','#8a5a3b']},
 moments:{num:'Chapter Four',name:'Sweet Moments',short:'Moments',line:'Little things that became everything',art:['heart','camera','star','letter'],stk:['heart','camera','star','letter','love'],bg:'#fbeef0',g:['#fde2e7','#d4687e']}
 };
 const ORDER=['wedding','trips','cafe','moments'];
@@ -471,6 +479,7 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.slice();const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
+ if(m.ch==='cafe')html+=stk('pizza','bottom:22px;right:-16px',12,420,74);
  leaf.insertAdjacentHTML('beforeend',html);return p}
 let io;
 let near;

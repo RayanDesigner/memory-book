@@ -19,6 +19,9 @@
 [data-theme=moments]{--bg:#fbeef0;--paper:#fffafa;--ink:#4a2f36;--muted:#a07a83;--accent:#d4687e;--accent2:#f7c6cf;--tape:rgba(247,198,207,.9);--hdr:#4a2f36}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden}
+/* paint the whole screen (incl. the area under Safari's bottom bar) in the chapter colour */
+html{background-color:var(--bg);transition:background-color .6s}
+@supports (height:100lvh){html,body{min-height:100lvh}}
 body{font-family:var(--sans);color:var(--ink);background:var(--bg);transition:background-color .6s}
 [data-theme=wedding] body{background:radial-gradient(120% 70% at 50% -10%,#fffaf2 0,transparent 60%),radial-gradient(circle at 1px 1px,rgba(184,149,90,.13) 1px,transparent 1.6px) 0 0/22px 22px,#f4ece0}
 [data-theme=trips] body{background:linear-gradient(180deg,#1b2530,#2c3946)}

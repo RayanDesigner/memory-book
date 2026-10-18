@@ -78,7 +78,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .pol{position:absolute;background:#fff;box-shadow:0 10px 22px rgba(0,0,0,.2);padding:0;transform:rotate(var(--r))}
 .pol .ph{position:absolute;inset:8px 8px 30px 8px;overflow:hidden;background:#eee}
 .pol img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .6s}
-.pol img.ok{opacity:1}
+.pol img.ok,.pol video.ok{opacity:1}
+.pol video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .6s}
+.mtag{position:absolute;right:6px;bottom:6px;font:600 10px/1 var(--sans);letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.45);padding:4px 6px;border-radius:6px;font-style:normal}
+#thumbs video{width:64px;height:64px;object-fit:cover;border-radius:10px;animation:pop .4s var(--spring)}
+#vvid{max-width:100%;max-height:100%;border-radius:6px;box-shadow:0 20px 50px rgba(0,0,0,.5);display:none}
 .pol .ph{background:linear-gradient(110deg,#eee 30%,#f8f8f8 50%,#eee 70%) 0 0/300% 100%;animation:shim 1.4s linear infinite}
 @keyframes shim{to{background-position:-150% 0}}
 .tape{position:absolute;top:-10px;left:50%;width:70px;height:22px;margin-left:-35px;background:var(--tape);transform:rotate(-4deg);z-index:2;box-shadow:0 1px 2px rgba(0,0,0,.08);
@@ -236,7 +240,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 <div class="wrap" id="addWrap"><div class="sheet">
   <div class="grab"></div>
   <h2>New memory</h2>
-  <label class="drop"><input type="file" id="files" accept="image/*" multiple hidden><div id="thumbs"></div><span class="drop-hint">📷 Choose photos (up to 6)</span></label>
+  <label class="drop"><input type="file" id="files" accept="image/*,video/*" multiple hidden><div id="thumbs"></div><span class="drop-hint">📷 Photos, GIFs or videos (up to 6)</span></label>
   <span class="lbl">Which chapter?</span>
   <div class="chips" id="chips"></div>
   <input class="field" id="fTitle" placeholder="Memory title" maxlength="60">
@@ -269,7 +273,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
   <button class="vx" id="vx">✕</button>
   <button class="vp vprev" id="vprev">‹</button>
   <button class="vp vnext" id="vnext">›</button>
-  <div class="vstage"><img id="vimg" alt=""></div>
+  <div class="vstage"><img id="vimg" alt=""><video id="vvid" controls playsinline></video></div>
   <div class="vcap"><b id="vt"></b><span id="vn"></span></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -277,10 +281,10 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,setDoc,getDoc,deleteDoc,onSnapshot} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {initializeFirestore,persistentLocalCache,persistentSingleTabManager,collection,doc,setDoc,getDoc,getDocFromServer,deleteDoc,onSnapshot} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const fbApp=initializeApp({apiKey:"AIzaSyB7mCgTdfxnlVqdSarP0LH-9GFarlbdn30",authDomain:"rami-fedaa-memory-book.firebaseapp.com",projectId:"rami-fedaa-memory-book",storageBucket:"rami-fedaa-memory-book.firebasestorage.app",messagingSenderId:"1028998036488",appId:"1:1028998036488:web:a9220fc6a4a9d92c9c25bd"});
 const auth=getAuth(fbApp);
-let fdb;try{fdb=initializeFirestore(fbApp,{localCache:persistentLocalCache({cacheSizeBytes:100*1024*1024,tabManager:persistentMultipleTabManager()})})}catch(e){fdb=initializeFirestore(fbApp,{})}
+let fdb;try{fdb=initializeFirestore(fbApp,{localCache:persistentLocalCache({cacheSizeBytes:100*1024*1024,tabManager:persistentSingleTabManager({forceOwnership:true})})})}catch(e){fdb=initializeFirestore(fbApp,{})}
 (()=>{
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e};
@@ -363,15 +367,32 @@ put(o){if(!this.db){this.mem=this.mem.filter(m=>m.id!==o.id).concat(o);return Pr
 del(id){if(!this.db){this.mem=this.mem.filter(m=>m.id!==id);return Promise.resolve()}return this.tx('readwrite',s=>s.delete(id))}};
 
 /* ================= CLOUD (Firestore) ================= */
+const CHUNK=675000;
+const b64=u8=>{let bin='';for(let j=0;j<u8.length;j+=8192)bin+=String.fromCharCode.apply(null,u8.subarray(j,j+8192));return btoa(bin)};
+async function putBlob(base,blob,prog){const buf=new Uint8Array(await blob.arrayBuffer());const n=Math.ceil(buf.length/CHUNK);
+ for(let i=0;i<n;i++){if(prog)prog(i+1,n);await setDoc(doc(fdb,...base,'parts',String(i)),{d:b64(buf.subarray(i*CHUNK,(i+1)*CHUNK))})}return n}
+async function getBlob(base,n,type){const parts=await Promise.all(Array.from({length:n},(_,i)=>getDoc(doc(fdb,...base,'parts',String(i))).then(s=>s.data().d)));
+ const bin=atob(parts.join(''));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type})}
 const Cloud={
- async put(m,photos,prog){for(let i=0;i<photos.length;i++){if(prog)prog(i+1,photos.length);await setDoc(doc(fdb,'photos',m.id+'_'+i),{mid:m.id,i,data:photos[i]})}
-  await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:photos.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
- async del(m){for(let i=0;i<(m.n||0);i++)await deleteDoc(doc(fdb,'photos',m.id+'_'+i));await deleteDoc(doc(fdb,'memories',m.id))}};
+ async put(m,items,prog){for(let i=0;i<items.length;i++){const it=items[i],id=m.id+'_'+i;
+   if(it.kind==='img'){if(prog)prog(`${i+1}/${items.length}`);await setDoc(doc(fdb,'photos',id),{mid:m.id,i,data:it.data})}
+   else{const n=await putBlob(['photos',id],it.file,(k,t)=>prog&&prog(`${i+1}/${items.length} · ${Math.round(k/t*100)}%`));
+    await setDoc(doc(fdb,'photos',id),{mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n})}}
+  await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:items.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
+ async del(m){for(let i=0;i<(m.n||0);i++){const id=m.id+'_'+i;try{const s=await getDoc(doc(fdb,'photos',id));const d=s.exists()?s.data():null;
+   if(d&&d.parts)for(let j=0;j<d.parts;j++)await deleteDoc(doc(fdb,'photos',id,'parts',String(j)))}catch(e){}await deleteDoc(doc(fdb,'photos',id))}
+  await deleteDoc(doc(fdb,'memories',m.id))}};
 const PH=new Map();
-function loadPhotos(m){if(!PH.has(m.id)){const pr=Promise.all(Array.from({length:m.n||0},(_,i)=>getDoc(doc(fdb,'photos',m.id+'_'+i)).then(s=>s.exists()?s.data().data:'')));
+/* each item → {kind:'img'|'gif'|'video', url} */
+function loadPhotos(m){if(!PH.has(m.id)){const pr=Promise.all(Array.from({length:m.n||0},(_,i)=>getDoc(doc(fdb,'photos',m.id+'_'+i)).then(async s=>{
+   if(!s.exists())return{kind:'img',url:''};const d=s.data();if(d.data)return{kind:'img',url:d.data};
+   const blob=await getBlob(['photos',m.id+'_'+i],d.parts,d.type);return{kind:d.kind||'img',url:URL.createObjectURL(blob)}})));
   PH.set(m.id,pr);pr.catch(()=>PH.delete(m.id))}return PH.get(m.id)}
+function mediaEl(it){if(it.kind==='video'){const v=document.createElement('video');v.muted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.setAttribute('playsinline','');v.src=it.url;v.oncanplay=()=>v.classList.add('ok');return v}
+ const im=document.createElement('img');im.alt='';im.onload=()=>im.classList.add('ok');im.src=it.url;return im}
 function fill(p){const m=mems.find(x=>x.id===p.dataset.id);if(!m||p._filled)return;p._filled=true;
- loadPhotos(m).then(arr=>p.querySelectorAll('.pol img').forEach((im,i)=>{if(arr[i]){im.onload=()=>im.classList.add('ok');im.src=arr[i]}})).catch(()=>{p._filled=false})}
+ loadPhotos(m).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
+   if(it.kind!=='img'){const t=document.createElement('i');t.className='mtag';t.textContent=it.kind==='video'?'▶':'GIF';ph.appendChild(t)}})).catch(()=>{p._filled=false})}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const fmt=d=>{if(!d)return'';try{return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}catch(e){return d}};
@@ -488,13 +509,19 @@ async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(
  for(let k=0;k<12;k++){const s=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);x.drawImage(img,0,0,c.width,c.height);
   const d=c.toDataURL('image/jpeg',q);if(d.length<880000)return d;if(q>.62)q-=.08;else max=Math.round(max*.82)}
  return c.toDataURL('image/jpeg',.5)}
-$('#files').onchange=async e=>{const fs=[...e.target.files].slice(0,6-picked.length);for(const f of fs){try{const d=await shrink(f);picked.push(d);const i=el('img');i.src=d;$('#thumbs').appendChild(i)}catch(err){}}};
+$('#files').onchange=async e=>{const fs=[...e.target.files].slice(0,6-picked.length);for(const f of fs){try{
+  const isVid=(f.type||'').startsWith('video/'),isGif=f.type==='image/gif';
+  if(isVid&&f.size>30*1024*1024){toast('Videos up to 30 MB please');continue}
+  if(isGif&&f.size>8*1024*1024){toast('GIFs up to 8 MB please');continue}
+  if(isVid||isGif){const u=URL.createObjectURL(f);picked.push({kind:isVid?'video':'gif',file:f,url:u});
+   const t=isVid?el('video'):el('img');t.src=u;if(isVid){t.muted=true;t.playsInline=true;t.autoplay=true;t.loop=true}$('#thumbs').appendChild(t)}
+  else{const d=await shrink(f);picked.push({kind:'img',data:d,url:d});const i=el('img');i.src=d;$('#thumbs').appendChild(i)}}catch(err){}}};
 let saving=false;
 $('#saveBtn').onclick=async()=>{if(saving)return;if(!picked.length){toast('Pick at least one photo');return}
  const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),created:Date.now(),n:picked.length};
  saving=true;$('#saveBtn').textContent='Uploading…';
- try{await Cloud.put(m,picked,(i,n)=>{$('#saveBtn').textContent=`Uploading ${i}/${n}…`})}catch(e){saving=false;$('#saveBtn').textContent='Save memory';toast("Couldn't upload — check your connection");return}
- saving=false;$('#saveBtn').textContent='Save memory';PH.set(m.id,Promise.resolve(picked.slice()));
+ try{await Cloud.put(m,picked,t=>{$('#saveBtn').textContent=`Uploading ${t}…`})}catch(e){saving=false;$('#saveBtn').textContent='Save memory';toast("Couldn't upload — check your connection");return}
+ saving=false;$('#saveBtn').textContent='Save memory';PH.set(m.id,Promise.resolve(picked.map(it=>({kind:it.kind,url:it.url}))));
  if(!mems.find(x=>x.id===m.id))mems.push(m);close();const go=()=>{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p.scrollIntoView({behavior:reduce?'auto':'smooth',inline:'center'});const f=$('#fab').getBoundingClientRect();burst(f.left+29,f.top+29);toast('Memory saved ✨')};
  if(pickCh!==cur){switchCh(pickCh);setTimeout(go,1100)}else{render();setTimeout(go,250)}};
 
@@ -503,10 +530,11 @@ let vm=null,vi=0;
 async function showV(){const im=$('#vimg');const n=vm.n||0;
  $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;
  $('#vprev').style.visibility=vi>0?'visible':'hidden';$('#vnext').style.visibility=vi<n-1?'visible':'hidden';
- const want=vi,arr=await loadPhotos(vm);if(want!==vi)return;
- im.classList.remove('kb');void im.offsetWidth;im.src=arr[vi]||'';im.classList.add('kb')}
+ const want=vi,arr=await loadPhotos(vm);if(want!==vi)return;const it=arr[vi]||{kind:'img',url:''},vv=$('#vvid');
+ if(it.kind==='video'){im.style.display='none';vv.style.display='block';vv.src=it.url;const p=vv.play();if(p&&p.catch)p.catch(()=>{});Music.duck(true)}
+ else{vv.pause();vv.removeAttribute('src');vv.style.display='none';im.style.display='';Music.duck(false);im.classList.remove('kb');void im.offsetWidth;im.src=it.url;im.classList.add('kb')}}
 function openViewer(m,i){vm=m;vi=i;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}
-$('#vx').onclick=()=>{$('#viewer').classList.remove('on')};
+$('#vx').onclick=()=>{const vv=$('#vvid');vv.pause();vv.removeAttribute('src');$('#viewer').classList.remove('on');Music.duck(false)};
 $('#vprev').onclick=()=>{if(vi>0){vi--;showV()}};$('#vnext').onclick=()=>{if(vi<(vm.n||0)-1){vi++;showV()}};
 let sx=0;$('#viewer').addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
 $('#viewer').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50){dx<0?$('#vnext').click():$('#vprev').click()}});
@@ -514,12 +542,12 @@ $('#viewer').addEventListener('touchend',e=>{const dx=e.changedTouches[0].client
 /* ================= BACKUP / MIGRATION ================= */
 const b2d=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
 $('#expBtn').onclick=async()=>{toast('Preparing backup…');const out={v:2,settings,memories:[]};
- for(const m of mems)out.memories.push(Object.assign({},m,{photos:await loadPhotos(m)}));
+ for(const m of mems){const arr=await loadPhotos(m);const photos=[];for(const it of arr)photos.push(it.url.startsWith('data:')?it.url:await b2d(await fetch(it.url).then(r=>r.blob())));out.memories.push(Object.assign({},m,{photos}))}
  const a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='memory-book-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)};
 async function uploadMany(list,label){let k=0;for(const m of list){k++;toast(`${label} ${k}/${list.length}…`);
-  const photos=[];for(const p of m.photos||[]){const blob=typeof p==='string'?await fetch(p).then(r=>r.blob()):p;photos.push(await shrink(blob))}
+  const photos=[];for(const p of m.photos||[]){const blob=typeof p==='string'?await fetch(p).then(r=>r.blob()):p;const ty=blob.type||'';if(ty.startsWith('video/')||ty==='image/gif')photos.push({kind:ty==='image/gif'?'gif':'video',file:blob,url:URL.createObjectURL(blob)});else{const d=await shrink(blob);photos.push({kind:'img',data:d,url:d})}}
   if(!photos.length)continue;const mm={id:m.id||uid(),ch:CH[m.ch]?m.ch:'moments',title:m.title||'',date:m.date||today(),note:m.note||'',created:m.created||Date.now(),n:photos.length};
-  await Cloud.put(mm,photos);PH.set(mm.id,Promise.resolve(photos))}}
+  await Cloud.put(mm,photos);PH.set(mm.id,Promise.resolve(photos.map(it=>({kind:it.kind,url:it.url}))))}}
 $('#impFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());close();
  await uploadMany(d.memories||[],'Restoring');toast('Memories restored ✨')}catch(err){toast('That file is not a valid backup')}};
 async function checkLocal(){await DB.open();let list=[];try{list=await DB.all()||[]}catch(e){}
@@ -533,7 +561,7 @@ async function signIn(){const p=new GoogleAuthProvider();p.setCustomParameters({
  try{await signInWithPopup(auth,p);return true}catch(e){
   if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment'){await signInWithRedirect(auth,p);return false}
   if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')toast("Couldn't sign in — try again");return false}}
-async function verifyMember(){try{await getDoc(doc(fdb,'meta','settings'));return true}catch(e){
+async function verifyMember(){try{await Promise.race([getDocFromServer(doc(fdb,'meta','settings')),new Promise((_,r)=>setTimeout(()=>r({code:'timeout'}),9000))]);return true}catch(e){
   if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');await signOut(auth);return false}return true}}
 function startSync(){unsub.forEach(f=>f());unsub=[];
  unsub.push(onSnapshot(collection(fdb,'memories'),snap=>{mems=snap.docs.map(d=>Object.assign({id:d.id},d.data()));if(opened)render(true)},
@@ -572,19 +600,22 @@ const Music={a:new Audio(),ctx:null,gain:null,muted:!!store.get('album.muted',fa
  unlock(){/* must run inside a tap so phones allow sound; Web Audio gain also works on iPhone where volume is fixed */
   try{if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(C){this.ctx=new C();const src=this.ctx.createMediaElementSource(this.a);this.gain=this.ctx.createGain();this.gain.gain.value=0;src.connect(this.gain).connect(this.ctx.destination)}}
    if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume()}catch(e){}
-  this.a.loop=true;this.a.preload='auto';if(!this.gain)this.a.volume=0},
+  this.a.loop=false;this.a.preload='auto';if(!this.gain)this.a.volume=0},
  level(v,ms){if(this.gain){const t=this.ctx.currentTime,g=this.gain.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+ms/1000)}
   else{const a=this.a,from=a.volume,st=performance.now();const step=()=>{const k=Math.min(1,(performance.now()-st)/ms);a.volume=from+(v-from)*k;if(k<1)requestAnimationFrame(step)};step()}},
  play(ch){this.ui();
   if(!hasTrack(ch)||this.muted){if(!this.a.paused){this.level(0,700);clearTimeout(this._p);this._p=setTimeout(()=>{if(!hasTrack(cur)||this.muted)this.a.pause()},750)}return}
   const tr=trackFor(ch);if(tr&&typeof tr.then==='function'){if(this.track&&!this.a.paused)this.level(0,500);tr.then(u=>{if(cur===ch&&opened)this.start(u)});return}
   this.start(tr)},
- start(t){if(!t)return;
+ start(t){if(!t)return;this._out=false;
   if(t!==this.track){this.track=t;this.a.src=t;this.a.currentTime=0}
   clearTimeout(this._p);const p=this.a.play();if(p&&p.catch)p.catch(()=>{});this.level(VOL,2200)},
+ duck(on){if(this._duck===on)return;this._duck=on;if(!this.a.paused)this.level(on?0.04:VOL,on?500:1500)},
  toggle(){this.muted=!this.muted;store.set('album.muted',this.muted);this.unlock();this.play(cur)},
  ui(){const b=$('#sndBtn');b.innerHTML=this.muted?SND_OFF:SND_ON;b.classList.toggle('off',this.muted);b.hidden=!hasTrack(cur)}};
 $('#sndBtn').onclick=()=>Music.toggle();
+Music.a.addEventListener('timeupdate',()=>{const a=Music.a;if(!a.duration||a.paused||Music._out)return;if(a.duration-a.currentTime<3){Music._out=true;Music.level(0,2800)}});
+Music.a.addEventListener('ended',()=>{Music._out=false;if(!opened||Music.muted||!hasTrack(cur))return;Music.a.currentTime=0;const p=Music.a.play();if(p&&p.catch)p.catch(()=>{});Music.level(Music._duck?0.04:VOL,3000)});
 function musLabel(){$('#musLbl').firstChild.textContent=`Set music for “${CH[cur].short}”`}
 $('#musFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const ch=cur;close();
  if(f.size>12*1024*1024){toast('That song is too big (max 12 MB)');return}

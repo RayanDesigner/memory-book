@@ -156,8 +156,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .road{position:absolute;inset:0 18px}
 .road i{position:absolute;left:0;right:0;bottom:10px;height:3px;background:repeating-linear-gradient(90deg,var(--accent2) 0 18px,transparent 18px 34px);animation:dash .6s linear infinite}
 @keyframes dash{to{background-position:34px 0}}
-.road .car{position:absolute;bottom:12px;width:70px;animation:drive 8s linear infinite}
-.road .car svg{animation:bump .35s ease-in-out infinite alternate}
+.road .car{position:absolute;bottom:13px;width:96px;animation:drive 9s linear infinite}
+.road .car img{width:100%;height:auto;display:block;transform:scaleX(-1);animation:bumpF .35s ease-in-out infinite alternate;filter:drop-shadow(0 4px 4px rgba(0,0,0,.35))}
+@keyframes bumpF{to{transform:scaleX(-1) translateY(-2px)}}
 @keyframes drive{from{left:-80px}to{left:calc(100% + 20px)}}
 @keyframes bump{to{transform:translateY(-2px)}}
 [data-theme=wedding] .deco{height:108px;overflow:visible}
@@ -165,6 +166,15 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .bq-top img{height:100%;width:auto;max-width:92%;object-fit:contain;filter:drop-shadow(0 8px 12px rgba(120,90,50,.22));transform-origin:50% 60%;animation:bqIn 1.1s var(--spring) both,bqFloat 7s ease-in-out 1.1s infinite}
 @keyframes bqIn{from{opacity:0;transform:translateY(-10px) scale(.9)}}
 @keyframes bqFloat{50%{transform:translateY(-3px) rotate(-1deg)}}
+#outer{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+#app{z-index:2}
+.ou{position:absolute;width:clamp(84px,19vw,160px);opacity:0;transform:translateY(16px) rotate(var(--r)) scale(.9);transition:opacity .8s,transform 1s var(--spring);filter:drop-shadow(0 8px 12px rgba(80,50,30,.28))}
+.ou.on{opacity:1;transform:rotate(var(--r))}
+.ou img{width:100%;height:auto;display:block;animation:ouFloat 6s ease-in-out infinite;animation-delay:var(--d)}
+@keyframes ouFloat{50%{transform:translateY(-8px) rotate(2deg)}}
+.ou.l{left:max(-34px,calc(50% - 215px - 18vw))}.ou.r{right:max(-34px,calc(50% - 215px - 18vw))}
+.ou.car{width:clamp(110px,30vw,230px)}
+@media (max-width:600px){.ou{width:24vw}.ou.l{left:-9vw}.ou.r{right:-9vw}.ou.car{width:38vw}.ou.car.l{left:-16vw}.ou.car.r{right:-16vw}}
 .garland{display:flex;justify-content:center;align-items:center;gap:2px;height:100%}
 .garland > div{width:40px;animation:sway 5s ease-in-out infinite;transform-origin:50% 100%}
 .garland > div.big{width:62px}
@@ -246,6 +256,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 </head>
 <body>
 <canvas id="amb"></canvas>
+<div id="outer" aria-hidden="true"></div>
 <div id="wipe"></div>
 
 <section id="cover">
@@ -301,6 +312,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
     <label class="btn ghost" style="flex:1">Import<input type="file" id="impFile" accept="application/json" hidden></label>
   </div>
   <label class="btn ghost full" style="margin-top:10px" id="musLbl">Set music for this chapter<input type="file" id="musFile" accept="audio/*" hidden></label>
+  <label class="btn ghost full" style="margin-top:10px">Add couple stickers<input type="file" id="stkFile" accept="image/*" multiple hidden></label>
   <label class="btn ghost full" style="margin-top:10px">Change cover photo<input type="file" id="coverFile" accept="image/*" hidden></label>
   <button class="btn ghost full" id="migBtn" style="margin-top:10px" hidden></button>
   <span class="hint" id="who" style="margin-top:14px;text-align:center"></span>
@@ -376,7 +388,7 @@ star:`<svg viewBox="0 0 80 80"><path d="M40 6L49 30L74 31L54 46L61 71L40 56L19 7
 letter:`<svg viewBox="0 0 100 70"><rect x="4" y="6" width="92" height="58" rx="6" fill="#fff" stroke="#d4687e" stroke-width="3"/><path d="M6 10L50 40L94 10" fill="none" stroke="#d4687e" stroke-width="3"/><path d="M50 52C42 46 40 42 42 39C44 36 48 36 50 39C52 36 56 36 58 39C60 42 58 46 50 52Z" fill="#ef6f8b"/></svg>`,
 love:badge('Love you','#d4687e','#fff',28)
 };
-S.rose='<img src="rose.webp" alt="" decoding="async">';S.bud='<img src="bud.webp" alt="" decoding="async">';S.ring='<img src="ring.webp" alt="" decoding="async">';S.pizza='<img src="pizza.webp" alt="" decoding="async">';
+S.rose='<img src="rose.webp" alt="" decoding="async">';S.bud='<img src="bud.webp" alt="" decoding="async">';S.ring='<img src="ring.webp" alt="" decoding="async">';S.pizza='<img src="pizza.webp" alt="" decoding="async">';S.car='<img class="carimg" src="car.webp" alt="" decoding="async">';
 const ICON={
 wedding:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 13c-3 0-5-2-5-5 0-2 2-4 5-4s5 2 5 4c0 3-2 5-5 5z"/><path d="M12 13v8M12 17c2-1 4-1 5-3M10 8c1-1 3-1 4 0"/></svg>',
 trips:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3l2-5h11l3 5h2v3"/><circle cx="7.5" cy="16.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/><path d="M9.5 16.5h5M5 13h14"/></svg>',
@@ -494,11 +506,20 @@ function deco(){const d=$('#deco');
  else if(cur==='cafe')d.innerHTML=`<div class="cafe-strip"><div class="b">${S.beans}</div><div class="cup"><div class="steam"><span></span><span></span><span></span></div>${S.cup}</div><div class="b" style="width:46px">${S.croissant}</div></div>`;
  else d.innerHTML=`<div class="hearts"><div>${S.heart}</div><div>${S.heart}</div><div>${S.heart}</div></div>`}
 const countTxt=n=>n===1?'1 memory':`${n} memories`;
+let COUPLE=[];
+const cpl=(seed,w,style,r,d)=>COUPLE.length?`<div class="stk couple" style="${style};width:${w}px;--r:${r}deg;--d:${d}ms"><img src="${COUPLE[seed%COUPLE.length]}" alt=""></div>`:'';
+function outer(){const o=$('#outer');if(!o)return;o.innerHTML='';
+ const spots=[['l','18%',-10],['r','33%',9],['l','56%',7],['r','70%',-8]];let list=[];
+ if(cur==='wedding'&&COUPLE.length&&opened)list=spots.map((s,i)=>({cls:'',img:COUPLE[(i*3+1)%COUPLE.length],s}));
+ else if(cur==='trips'&&opened)list=[{cls:'car',img:'car.webp',s:['l','24%',-4]},{cls:'car flip',img:'car.webp',s:['r','64%',3]}];
+ list.forEach((it,i)=>{const d=document.createElement('div');d.className=`ou ${it.s[0]} ${it.cls}`;d.style.top=it.s[1];d.style.setProperty('--r',it.s[2]+'deg');d.style.setProperty('--d',(i*700)+'ms');
+  d.innerHTML=`<img src="${it.img}" alt=""${it.cls.includes('flip')?' style="transform:scaleX(-1)"':''}>`;o.appendChild(d);setTimeout(()=>d.classList.add('on'),120+i*160)})}
 function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const rs=[-6,12,-6,14];
  p.innerHTML=`<div class="leaf"><div class="chap-art">${c.art.map((s,i)=>`<div class="stk a${i}" style="--r:${rs[i]}deg;--d:${i*130}ms">${S[s]}</div>`).join('')}</div>
  <p class="kick">${c.num}</p><h2>${c.name}</h2><p class="line">${c.line}</p>
  <p class="count">${n?countTxt(n):'No memories here yet'}</p>
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
+ if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-40px;right:-28px',8,600)+cpl(4,92,'top:-22px;left:-22px',-10,760));
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);
  const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];
@@ -511,10 +532,11 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  const k=el('button','kebab');k.setAttribute('aria-label','Delete');k.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
  k.onclick=async()=>{if(confirm('Delete this memory?')){try{await Cloud.del(m);mems=mems.filter(x=>x.id!==m.id);PH.delete(m.id);render(true);toast('Memory deleted')}catch(e){toast("Couldn't delete — try again")}}};leaf.appendChild(k);
  const ed=el('button','kebab edit');ed.setAttribute('aria-label','Edit');ed.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';ed.onclick=()=>openEdit(m);leaf.appendChild(ed);
- const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.slice();const n=2+Math.floor(r()*2);let html='';
+ const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.filter((_,i)=>!(m.ch==='wedding'&&i===0));const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
  if(m.ch==='cafe')html+=stk('pizza','bottom:22px;right:-16px',12,420,74);
+ if(m.ch==='wedding'){let h=0;for(const c of m.id)h=(h*31+c.charCodeAt(0))>>>0;html+=cpl(h,100,'top:-30px;left:-26px',(h%14)-7,520)}
  leaf.insertAdjacentHTML('beforeend',html);return p}
 let io;
 let near;
@@ -538,7 +560,7 @@ $('#book').addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnima
 function tabs(){const t=$('#tabs');t.innerHTML=ORDER.map(k=>`<button class="tab" data-k="${k}">${ICON[k]}<span>${CH[k].short}</span></button>`).join('')+'<span class="pill" id="pill"></span>';
  t.querySelectorAll('.tab').forEach(b=>b.onclick=e=>switchCh(b.dataset.k,e));tabsUpdate()}
 function tabsUpdate(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===cur));const a=document.querySelector('.tab.on'),p=$('#pill');if(a&&p){p.style.width=a.offsetWidth+'px';p.style.transform=`translateX(${a.offsetLeft}px)`}}
-function applyTheme(ch){cur=ch;musLabel();document.documentElement.dataset.theme=ch;store.set('album.ch',ch);document.querySelector('meta[name=theme-color]').content=CH[ch].bg;tabsUpdate();deco();render();setAmbient(ch)}
+function applyTheme(ch){cur=ch;musLabel();setTimeout(outer,50);document.documentElement.dataset.theme=ch;store.set('album.ch',ch);document.querySelector('meta[name=theme-color]').content=CH[ch].bg;tabsUpdate();deco();render();setAmbient(ch)}
 function switchCh(ch,ev){if(ch===cur)return;Music.unlock();if(opened){const prev=cur;cur=ch;Music.play(ch);cur=prev}if(reduce||!document.body.animate){applyTheme(ch);return}
  const r=ev&&ev.currentTarget?ev.currentTarget.getBoundingClientRect():null;const x=r?r.left+r.width/2:innerWidth/2,y=r?r.top+r.height/2:innerHeight;
  const R=Math.hypot(Math.max(x,innerWidth-x),Math.max(y,innerHeight-y));const w=$('#wipe');w.style.background=CH[ch].bg;w.style.opacity=1;w.style.display='block';
@@ -645,12 +667,13 @@ async function verifyMember(){try{await Promise.race([getDocFromServer(doc(fdb,'
 function startSync(){unsub.forEach(f=>f());unsub=[];
  unsub.push(onSnapshot(collection(fdb,'memories'),snap=>{mems=snap.docs.map(d=>Object.assign({id:d.id},d.data()));if(opened)render(true)},
   e=>{if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');signOut(auth)}}));
+ unsub.push(onSnapshot(collection(fdb,'stickers'),snap=>{COUPLE=snap.docs.sort((a,b)=>a.id<b.id?-1:1).map(d=>d.data().data).filter(Boolean);if(opened){render(true);outer()}},()=>{}));
  unsub.push(onSnapshot(collection(fdb,'music'),snap=>{for(const k of Object.keys(CLOUDMUS))delete CLOUDMUS[k];snap.docs.forEach(d=>{CLOUDMUS[d.id]=d.data()});
   Object.keys(CLOUDMUS).forEach(ch=>{const p=loadTrack(ch);if(p)p.then(u=>{MUSURL[ch+':'+CLOUDMUS[ch].v]=u})});Music.ui()},()=>{}));
  unsub.push(onSnapshot(doc(fdb,'meta','cover'),s=>{if(s.exists()){const d=s.data().data;setCover(d);try{localStorage.setItem('album.cover',d)}catch(e){}}},()=>{}));
  unsub.push(onSnapshot(doc(fdb,'meta','settings'),s=>{if(s.exists()){settings=Object.assign(settings,s.data());store.set('album.settings.en',settings);header()}},()=>{}))}
-function openBook(){if(opened)return;opened=true;Music.play(cur);$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();render();setTimeout(()=>{$('#cover').style.display='none'},reduce?0:1800)}
-function closeBook(){opened=false;Music.level(0,400);setTimeout(()=>Music.a.pause(),450);$('#app').hidden=true;$('#fab').hidden=true;close();const c=$('#cover');c.style.display='';c.classList.remove('open','gone')}
+function openBook(){if(opened)return;opened=true;setTimeout(outer,1300);Music.play(cur);$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();render();setTimeout(()=>{$('#cover').style.display='none'},reduce?0:1800)}
+function closeBook(){opened=false;$('#outer').innerHTML='';Music.level(0,400);setTimeout(()=>Music.a.pause(),450);$('#app').hidden=true;$('#fab').hidden=true;close();const c=$('#cover');c.style.display='';c.classList.remove('open','gone')}
 $('#cover').onclick=async()=>{if(opened)return;Music.unlock();if(TRACKS[cur]&&!CLOUDMUS[cur]&&!Music.muted){Music.track=TRACKS[cur];Music.a.src=Music.track;const p=Music.a.play();if(p&&p.catch)p.catch(()=>{})}
  if(!auth.currentUser){const ok=await signIn();if(!ok)return}
  if(!member){member=await verifyMember();if(!member)return;startSync()}
@@ -708,6 +731,9 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(!Music.
 $('#phRose').innerHTML=S.rose;
 function setCover(d){if(!d)return;const im=$('#coverPhoto');im.onload=()=>{im.classList.add('ok');$('#phRose').style.display='none'};im.src=d}
 try{setCover(localStorage.getItem('album.cover'))}catch(e){}
+$('#stkFile').onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;close();let k=0;
+ for(const f of fs){k++;toast(`Adding sticker ${k}/${fs.length}…`);try{const d=await b2d(f);if(d.length>880000){toast('Sticker too big');continue}
+  await setDoc(doc(fdb,'stickers',String(Date.now())+'_'+k),{data:d})}catch(err){toast("Couldn't add sticker");return}}toast('Stickers added ✨');e.target.value=''};
 $('#coverFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;close();toast('Uploading cover photo…');try{const d=await shrink(f);await setDoc(doc(fdb,'meta','cover'),{data:d});toast('Cover updated ✨')}catch(err){toast("Couldn't update the cover")}};
 addEventListener('resize',()=>{size();tabsUpdate();onScroll()});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}

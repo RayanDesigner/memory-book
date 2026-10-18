@@ -509,7 +509,7 @@ const countTxt=n=>n===1?'1 memory':`${n} memories`;
 let STK={};const setFor=ch=>STK[ch]||[];
 const cpl=(seed,w,style,r,d,ch=cur)=>{const L=setFor(ch);return L.length?`<div class="stk couple" style="${style};width:${w}px;--r:${r}deg;--d:${d}ms"><img src="${L[seed%L.length]}" alt=""></div>`:''};
 function outer(){const o=$('#outer');if(!o)return;o.innerHTML='';
- const spots=[['l','18%',-10],['r','33%',9],['l','56%',7],['r','70%',-8]];let list=[];
+ const spots=[['r','33%',9],['l','56%',7],['r','70%',-8]];let list=[];
  const W=setFor('wedding'),Tp=setFor('trips');
  if(cur==='wedding'&&W.length&&opened)list=spots.map((s,i)=>({cls:'',img:W[(i*3+1)%W.length],s}));
  else if(cur==='trips'&&opened){list=[{cls:'car',img:'car.webp',s:['l','15%',-4]},{cls:'car flip',img:'car.webp',s:['r','76%',3]}];
@@ -521,7 +521,7 @@ function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const 
  <p class="kick">${c.num}</p><h2>${c.name}</h2><p class="line">${c.line}</p>
  <p class="count">${n?countTxt(n):'No memories here yet'}</p>
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
- if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-40px;right:-28px',8,600)+cpl(4,92,'top:-22px;left:-22px',-10,760));
+ if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-40px;right:-28px',8,600));
  if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(2,92,'bottom:-36px;right:-24px',7,600)+cpl(4,90,'bottom:-36px;left:-24px',-8,760));
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);

@@ -58,6 +58,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .names{font-family:var(--script);font-size:34px;color:var(--hdr);text-align:left;line-height:1.1;white-space:nowrap}
 .names i{font-style:normal;color:var(--accent);margin:0 4px;font-size:.8em}
 .days{font-family:var(--serif);font-style:italic;font-size:15px;opacity:.8;flex:1;text-align:right;padding-right:4px}
+#sndBtn svg{width:19px;height:19px}
+#sndBtn.off{opacity:.55}
 .icon{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--paper) 70%,transparent);color:var(--ink);flex:none}
 .deco{height:62px;position:relative;margin:0 0 2px;overflow:hidden}
 .book{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
@@ -221,6 +223,7 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
   <header class="top">
     <button class="names" id="namesBtn"><span id="nA"></span><i>&amp;</i><span id="nB"></span></button>
     <div class="days" id="days"></div>
+    <button class="icon" id="sndBtn" aria-label="Music" hidden></button>
     <button class="icon" id="setBtn" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></button>
   </header>
   <div class="deco" id="deco"></div>
@@ -455,8 +458,8 @@ $('#book').addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnima
 function tabs(){const t=$('#tabs');t.innerHTML=ORDER.map(k=>`<button class="tab" data-k="${k}">${ICON[k]}<span>${CH[k].short}</span></button>`).join('')+'<span class="pill" id="pill"></span>';
  t.querySelectorAll('.tab').forEach(b=>b.onclick=e=>switchCh(b.dataset.k,e));tabsUpdate()}
 function tabsUpdate(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.k===cur));const a=document.querySelector('.tab.on'),p=$('#pill');if(a&&p){p.style.width=a.offsetWidth+'px';p.style.transform=`translateX(${a.offsetLeft}px)`}}
-function applyTheme(ch){cur=ch;document.documentElement.dataset.theme=ch;store.set('album.ch',ch);document.querySelector('meta[name=theme-color]').content=CH[ch].bg;tabsUpdate();deco();render();setAmbient(ch)}
-function switchCh(ch,ev){if(ch===cur)return;if(reduce||!document.body.animate){applyTheme(ch);return}
+function applyTheme(ch){cur=ch;if(opened)Music.play(ch);document.documentElement.dataset.theme=ch;store.set('album.ch',ch);document.querySelector('meta[name=theme-color]').content=CH[ch].bg;tabsUpdate();deco();render();setAmbient(ch)}
+function switchCh(ch,ev){if(ch===cur)return;Music.unlock();if(TRACKS[cur]&&TRACKS[cur]!==TRACKS[ch])Music.level(0,500);if(reduce||!document.body.animate){applyTheme(ch);return}
  const r=ev&&ev.currentTarget?ev.currentTarget.getBoundingClientRect():null;const x=r?r.left+r.width/2:innerWidth/2,y=r?r.top+r.height/2:innerHeight;
  const R=Math.hypot(Math.max(x,innerWidth-x),Math.max(y,innerHeight-y));const w=$('#wipe');w.style.background=CH[ch].bg;w.style.opacity=1;w.style.display='block';
  const a=w.animate([{clipPath:`circle(0px at ${x}px ${y}px)`},{clipPath:`circle(${R}px at ${x}px ${y}px)`}],{duration:560,easing:'cubic-bezier(.7,0,.3,1)',fill:'forwards'});
@@ -536,9 +539,9 @@ function startSync(){unsub.forEach(f=>f());unsub=[];
   e=>{if(e.code==='permission-denied'){toast('Sorry, this album is private 🤍');signOut(auth)}}));
  unsub.push(onSnapshot(doc(fdb,'meta','cover'),s=>{if(s.exists()){const d=s.data().data;setCover(d);try{localStorage.setItem('album.cover',d)}catch(e){}}},()=>{}));
  unsub.push(onSnapshot(doc(fdb,'meta','settings'),s=>{if(s.exists()){settings=Object.assign(settings,s.data());store.set('album.settings.en',settings);header()}},()=>{}))}
-function openBook(){if(opened)return;opened=true;$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();setTimeout(()=>{$('#cover').style.display='none';render()},reduce?0:1200)}
-function closeBook(){opened=false;$('#app').hidden=true;$('#fab').hidden=true;close();const c=$('#cover');c.style.display='';c.classList.remove('open','gone')}
-$('#cover').onclick=async()=>{if(opened)return;
+function openBook(){if(opened)return;opened=true;Music.play(cur);$('#cover').classList.add('open','gone');$('#app').hidden=false;$('#fab').hidden=false;tabsUpdate();setTimeout(()=>{$('#cover').style.display='none';render()},reduce?0:1200)}
+function closeBook(){opened=false;Music.level(0,400);setTimeout(()=>Music.a.pause(),450);$('#app').hidden=true;$('#fab').hidden=true;close();const c=$('#cover');c.style.display='';c.classList.remove('open','gone')}
+$('#cover').onclick=async()=>{if(opened)return;Music.unlock();if(TRACKS[cur]&&!Music.muted){Music.track=TRACKS[cur];Music.a.src=Music.track;const p=Music.a.play();if(p&&p.catch)p.catch(()=>{})}
  if(!auth.currentUser){const ok=await signIn();if(!ok)return}
  if(!member){member=await verifyMember();if(!member)return;startSync()}
  openBook()};
@@ -547,6 +550,28 @@ onAuthStateChanged(auth,async u=>{setCoverBtn();$('#who').textContent=u?`Signed 
  if(!u){member=false;try{localStorage.removeItem('album.cover')}catch(e){}const cp=$('#coverPhoto');cp.classList.remove('ok');cp.removeAttribute('src');$('#phRose').style.display='';unsub.forEach(f=>f());unsub=[];mems=[];PH.clear();if(opened)closeBook();return}
  if(!member){member=await verifyMember();if(member){startSync();checkLocal()}}});
 getRedirectResult(auth).catch(()=>{});
+
+
+/* ================= MUSIC ================= */
+const TRACKS={wedding:'wedding.mp3',trips:'',cafe:'',moments:''};
+const VOL=0.22;
+const SND_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>';
+const SND_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+const Music={a:new Audio(),ctx:null,gain:null,muted:!!store.get('album.muted',false),track:'',
+ unlock(){/* must run inside a tap so phones allow sound; Web Audio gain also works on iPhone where volume is fixed */
+  try{if(!this.ctx){const C=window.AudioContext||window.webkitAudioContext;if(C){this.ctx=new C();const src=this.ctx.createMediaElementSource(this.a);this.gain=this.ctx.createGain();this.gain.gain.value=0;src.connect(this.gain).connect(this.ctx.destination)}}
+   if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume()}catch(e){}
+  this.a.loop=true;this.a.preload='auto';if(!this.gain)this.a.volume=0},
+ level(v,ms){if(this.gain){const t=this.ctx.currentTime,g=this.gain.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+ms/1000)}
+  else{const a=this.a,from=a.volume,st=performance.now();const step=()=>{const k=Math.min(1,(performance.now()-st)/ms);a.volume=from+(v-from)*k;if(k<1)requestAnimationFrame(step)};step()}},
+ play(ch){const t=TRACKS[ch]||'';this.ui();
+  if(!t||this.muted){if(!this.a.paused){this.level(0,700);clearTimeout(this._p);this._p=setTimeout(()=>{if(!TRACKS[cur]||this.muted)this.a.pause()},750)}return}
+  if(t!==this.track){this.track=t;this.a.src=t;this.a.currentTime=0}
+  clearTimeout(this._p);const p=this.a.play();if(p&&p.catch)p.catch(()=>{});this.level(VOL,2200)},
+ toggle(){this.muted=!this.muted;store.set('album.muted',this.muted);this.unlock();this.play(cur)},
+ ui(){const b=$('#sndBtn');b.innerHTML=this.muted?SND_OFF:SND_ON;b.classList.toggle('off',this.muted);b.hidden=!TRACKS[cur]}};
+$('#sndBtn').onclick=()=>Music.toggle();
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(!Music.a.paused){Music._wasOn=true;Music.a.pause()}}else if(Music._wasOn&&opened){Music._wasOn=false;Music.play(cur)}});
 
 /* ================= COVER & BOOT ================= */
 $('#phRose').innerHTML=S.rose;

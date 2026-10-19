@@ -425,31 +425,37 @@ del(id){if(!this.db){this.mem=this.mem.filter(m=>m.id!==id);return Promise.resol
 /* ================= CLOUD (Firestore) ================= */
 const CHUNK=675000;
 const b64=u8=>{let bin='';for(let j=0;j<u8.length;j+=8192)bin+=String.fromCharCode.apply(null,u8.subarray(j,j+8192));return btoa(bin)};
-async function putBlob(base,blob,prog){const buf=new Uint8Array(await blob.arrayBuffer());const n=Math.ceil(buf.length/CHUNK);
- for(let i=0;i<n;i++){if(prog)prog(i+1,n);await setDoc(doc(fdb,...base,'parts',String(i)),{d:b64(buf.subarray(i*CHUNK,(i+1)*CHUNK))})}return n}
+async function putBlob(base,blob,prog){let buf=new Uint8Array(await blob.arrayBuffer());const n=Math.ceil(buf.length/CHUNK);
+ try{for(let i=0;i<n;i++){if(prog)prog(i+1,n);await setDoc(doc(fdb,...base,'parts',String(i)),{d:b64(buf.subarray(i*CHUNK,(i+1)*CHUNK))})}}finally{buf=null}return n}
 async function getBlob(base,n,type){const parts=await Promise.all(Array.from({length:n},(_,i)=>getDoc(doc(fdb,...base,'parts',String(i))).then(s=>s.data().d)));
  const bin=atob(parts.join(''));const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type})}
 const Cloud={
  async put(m,items,prog,off=0){let done=0;const tick=()=>{done++;if(prog)prog(`${done}/${items.length}`)};
-  await pool(4,items.map((it,j)=>async()=>{const i=off+j,id=m.id+'_'+i;
-   if(it.kind==='img'){await setDoc(doc(fdb,'photos',id),{mid:m.id,i,data:it.data})}
-   else{const n=await putBlob(['photos',id],it.file);await setDoc(doc(fdb,'photos',id),{mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n})}
-   tick()}));
+  const idx=items.map((it,j)=>j),imgs=idx.filter(j=>items[j].kind==='img'),big=idx.filter(j=>items[j].kind!=='img');
+  await pool(4,imgs.map(j=>async()=>{const i=off+j;await setDoc(doc(fdb,'photos',m.id+'_'+i),{mid:m.id,i,data:items[j].data});tick()}));
+  for(const j of big){const it=items[j],i=off+j,id=m.id+'_'+i;
+   const n=await putBlob(['photos',id],it.file,(k,t)=>{if(prog)prog(`${done+1}/${items.length} · ${it.kind==='video'?'video':'GIF'} ${Math.round(k/t*100)}%`)});
+   const meta={mid:m.id,i,kind:it.kind,type:it.file.type||'',parts:n};if(it.poster)meta.poster=it.poster;await setDoc(doc(fdb,'photos',id),meta);tick()}
   await setDoc(doc(fdb,'memories',m.id),{ch:m.ch,title:m.title,date:m.date,note:m.note,created:m.created,n:off+items.length,by:(auth.currentUser&&auth.currentUser.email)||''})},
  async del(m){await pool(4,Array.from({length:m.n||0},(_,i)=>async()=>{const id=m.id+'_'+i;try{const s=await getDoc(doc(fdb,'photos',id));const d=s.exists()?s.data():null;
    if(d&&d.parts)for(let j=0;j<d.parts;j++)await deleteDoc(doc(fdb,'photos',id,'parts',String(j)))}catch(e){}await deleteDoc(doc(fdb,'photos',id))}));
   await deleteDoc(doc(fdb,'memories',m.id))}};
 const PI=new Map();
-const PH={clear(){PI.clear()},delete(mid){for(const k of [...PI.keys()])if(k.startsWith(mid+'_'))PI.delete(k)},
+const PH={clear(){PI.clear();PT&&PT.clear()},delete(mid){for(const M of [PI,PT])for(const k of [...M.keys()])if(k.startsWith(mid+'_'))M.delete(k)},
  set(mid,pr){pr.then(arr=>arr.forEach((it,i)=>PI.set(mid+'_'+i,Promise.resolve(it))))}};
 /* each item → {kind:'img'|'gif'|'video', url} */
 function loadItem(m,i){const k=m.id+'_'+i;if(!PI.has(k)){const pr=getDoc(doc(fdb,'photos',k)).then(async s=>{
    if(!s.exists())return{kind:'img',url:''};const d=s.data();if(d.data)return{kind:'img',url:d.data};
    const blob=await getBlob(['photos',k],d.parts,d.type);return{kind:d.kind||'img',url:URL.createObjectURL(blob)}});
   PI.set(k,pr);pr.catch(()=>PI.delete(k))}return PI.get(k)}
+const PT=new Map();
+function loadThumb(m,i){const k=m.id+'_'+i;if(PT.has(k))return PT.get(k);
+ const pr=getDoc(doc(fdb,'photos',k)).then(s=>{if(!s.exists())return{kind:'img',url:''};const d=s.data();if(d.data)return{kind:'img',url:d.data};
+  if(d.kind==='video'&&d.poster)return{kind:'video',url:d.poster,poster:true};return loadItem(m,i)});
+ PT.set(k,pr);pr.catch(()=>PT.delete(k));return pr}
 function loadPhotos(m){return Promise.all(Array.from({length:m.n||0},(_,i)=>loadItem(m,i)))}
 async function pool(n,tasks){let i=0;const run=async()=>{while(i<tasks.length){const t=tasks[i++];await t()}};await Promise.all(Array.from({length:Math.min(n,tasks.length)},run))}
-function mediaEl(it){if(it.kind==='video'){const v=document.createElement('video');v.muted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.setAttribute('playsinline','');v.src=it.url;v.oncanplay=()=>v.classList.add('ok');return v}
+function mediaEl(it){if(it.kind==='video'&&!it.poster){const v=document.createElement('video');v.muted=true;v.loop=true;v.playsInline=true;v.autoplay=true;v.setAttribute('playsinline','');v.src=it.url;v.oncanplay=()=>v.classList.add('ok');return v}
  const im=document.createElement('img');im.alt='';im.onload=()=>im.classList.add('ok');im.src=it.url;return im}
 /* rotate the polaroids through every item of the memory on screen */
 let rotTick=0;
@@ -458,12 +464,12 @@ setInterval(()=>{if(!opened||document.hidden||$('#viewer').classList.contains('o
  const m=mems.find(x=>x.id===p.dataset.id);if(!m||(m.n||0)<=3)return;
  const slots=[...p.querySelectorAll('.pol .ph')];if(!slots.length)return;
  p._next=p._next==null?slots.length:p._next;const slot=slots[rotTick++%slots.length];const i=p._next;p._next=(p._next+1)%m.n;
- loadItem(m,i).then(it=>{if(!it||!it.url)return;const old=[...slot.children].filter(c=>c.tagName==='IMG'||c.tagName==='VIDEO');const ne=mediaEl(it);ne.classList.remove('ok');ne.style.opacity='0';slot.insertBefore(ne,slot.querySelector('.mtag'));
-  const show=()=>{requestAnimationFrame(()=>{ne.style.opacity='1';setTimeout(()=>old.forEach(o=>o.remove()),1200)})};if(it.kind==='video')ne.oncanplay=show;else ne.onload=show;
+ loadThumb(m,i).then(it=>{if(!it||!it.url)return;const old=[...slot.children].filter(c=>c.tagName==='IMG'||c.tagName==='VIDEO');const ne=mediaEl(it);ne.classList.remove('ok');ne.style.opacity='0';slot.insertBefore(ne,slot.querySelector('.mtag'));
+  const show=()=>{requestAnimationFrame(()=>{ne.style.opacity='1';setTimeout(()=>old.forEach(o=>o.remove()),1200)})};if(it.kind==='video'&&!it.poster)ne.oncanplay=show;else ne.onload=show;
   const tag=slot.querySelector('.mtag');if(tag)tag.textContent=it.kind==='video'?'▶':it.kind==='gif'?'GIF':'';if(tag&&it.kind==='img')tag.remove();
   slot.dataset.i=i})},3200);
 function fill(p){const m=mems.find(x=>x.id===p.dataset.id);if(!m||p._filled)return;p._filled=true;
- Promise.all(Array.from({length:Math.min(3,m.n||0)},(_,i)=>loadItem(m,i))).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
+ Promise.all(Array.from({length:Math.min(3,m.n||0)},(_,i)=>loadThumb(m,i))).then(arr=>p.querySelectorAll('.pol .ph').forEach((ph,i)=>{const it=arr[i];if(!it||!it.url)return;ph.innerHTML='';ph.appendChild(mediaEl(it));
    if(it.kind!=='img'){const t=document.createElement('i');t.className='mtag';t.textContent=it.kind==='video'?'▶':'GIF';ph.appendChild(t)}})).catch(()=>{p._filled=false})}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -599,22 +605,29 @@ async function shrink(file){let img;try{img=await createImageBitmap(file)}catch(
  for(let k=0;k<12;k++){const s=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);x.drawImage(img,0,0,c.width,c.height);
   const d=c.toDataURL('image/jpeg',q);if(d.length<880000)return d;if(q>.62)q-=.08;else max=Math.round(max*.82)}
  return c.toDataURL('image/jpeg',.5)}
+function posterOf(url){return new Promise(res=>{const v=document.createElement('video');let done=false;const end=d=>{if(done)return;done=true;v.removeAttribute('src');v.load();res(d)};
+ v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.preload='auto';v.crossOrigin='anonymous';
+ v.onloadeddata=()=>{try{v.currentTime=Math.min(.6,(v.duration||1)/3)}catch(e){end(null)}};
+ v.onseeked=()=>{try{const s=Math.min(1,900/Math.max(v.videoWidth,v.videoHeight));const c=document.createElement('canvas');c.width=Math.round(v.videoWidth*s);c.height=Math.round(v.videoHeight*s);
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);end(c.toDataURL('image/jpeg',.78))}catch(e){end(null)}};
+ v.onerror=()=>end(null);setTimeout(()=>end(null),6000);v.src=url})}
 const MAXP=50;const room=()=>MAXP-(editM?(editM.n||0):0);
 function pickHint(){const h=$('.drop-hint');if(editM){const r=room();h.textContent=r<=0?`This memory is full (${MAXP} items)`:picked.length?`${picked.length} new · ${(editM.n||0)+picked.length} / ${MAXP} total · tap to add more`:`📷 Add more to this memory (has ${editM.n||0}, room for ${r})`}
  else h.textContent=picked.length?`${picked.length} / ${MAXP} selected · tap to add more`:'📷 Photos, GIFs or videos (up to 50)'}
 $('#files').onchange=async e=>{const all=[...e.target.files];const fs=all.slice(0,Math.max(0,room()-picked.length));if(all.length>fs.length)toast(fs.length?`Only ${MAXP} per memory — added the first ${fs.length}`:`This memory already has ${MAXP} items`);let k=0;for(const f of fs){k++;$('.drop-hint').textContent=`Preparing ${k} / ${fs.length}…`;try{
   const isVid=(f.type||'').startsWith('video/'),isGif=f.type==='image/gif';
-  if(isVid&&f.size>30*1024*1024){toast('Videos up to 30 MB please');continue}
+  if(isVid&&f.size>30*1024*1024){toast(`Video too big (${Math.round(f.size/1048576)} MB) — max 30 MB`);continue}
   if(isGif&&f.size>8*1024*1024){toast('GIFs up to 8 MB please');continue}
-  if(isVid||isGif){const u=URL.createObjectURL(f);picked.push({kind:isVid?'video':'gif',file:f,url:u});
+  if(isVid||isGif){const u=URL.createObjectURL(f);const poster=isVid?await posterOf(u):null;picked.push({kind:isVid?'video':'gif',file:f,url:u,poster});
    const t=isVid?el('video'):el('img');t.src=u;if(isVid){t.muted=true;t.playsInline=true;t.autoplay=true;t.loop=true}$('#thumbs').appendChild(t)}
   else{const d=await shrink(f);picked.push({kind:'img',data:d,url:d});const i=el('img');i.src=d;$('#thumbs').appendChild(i)}}catch(err){}}pickHint();e.target.value=''};
 let saving=false;
+addEventListener('beforeunload',e=>{if(saving){e.preventDefault();e.returnValue=''}});
 $('#saveBtn').onclick=async()=>{if(saving)return;
  if(editM){const e=editM,off=e.n||0;const m=Object.assign({},e,{ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim()});
   saving=true;$('#saveBtn').textContent=picked.length?'Uploading…':'Saving…';
   try{await Cloud.put(m,picked,t=>{$('#saveBtn').textContent=`Uploading ${t}…`},off)}catch(err){saving=false;sheetMode();toast("Couldn't save — check your connection");return}
-  picked.forEach((it,j)=>PI.set(m.id+'_'+(off+j),Promise.resolve({kind:it.kind,url:it.url})));
+  picked.forEach((it,j)=>{const k=m.id+'_'+(off+j);PI.set(k,Promise.resolve({kind:it.kind,url:it.url}));PT.set(k,Promise.resolve(it.kind==='video'&&it.poster?{kind:'video',url:it.poster,poster:true}:{kind:it.kind,url:it.url}))});
   m.n=off+picked.length;const ix=mems.findIndex(x=>x.id===m.id);if(ix>=0)mems[ix]=m;saving=false;editM=null;sheetMode();close();
   const moved=m.ch!==cur;if(moved)switchCh(m.ch);else{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p._filled=false;render(true)}
   toast(picked.length?`Added ${picked.length} ✨`:'Saved ✨');return}
@@ -622,7 +635,7 @@ $('#saveBtn').onclick=async()=>{if(saving)return;
  const m={id:uid(),ch:pickCh,title:$('#fTitle').value.trim(),date:$('#fDate').value||today(),note:$('#fNote').value.trim(),created:Date.now(),n:picked.length};
  saving=true;$('#saveBtn').textContent='Uploading…';
  try{await Cloud.put(m,picked,t=>{$('#saveBtn').textContent=`Uploading ${t}…`})}catch(e){saving=false;$('#saveBtn').textContent='Save memory';toast("Couldn't upload — check your connection");return}
- saving=false;$('#saveBtn').textContent='Save memory';PH.set(m.id,Promise.resolve(picked.map(it=>({kind:it.kind,url:it.url}))));
+ saving=false;$('#saveBtn').textContent='Save memory';picked.forEach((it,j)=>{const k=m.id+'_'+j;PI.set(k,Promise.resolve({kind:it.kind,url:it.url}));PT.set(k,Promise.resolve(it.kind==='video'&&it.poster?{kind:'video',url:it.poster,poster:true}:{kind:it.kind,url:it.url}))});
  if(!mems.find(x=>x.id===m.id))mems.push(m);close();const go=()=>{const p=document.querySelector(`.page[data-id="${m.id}"]`);if(p)p.scrollIntoView({behavior:reduce?'auto':'smooth',inline:'center'});const f=$('#fab').getBoundingClientRect();burst(f.left+29,f.top+29);toast('Memory saved ✨')};
  if(pickCh!==cur){switchCh(pickCh);setTimeout(go,1100)}else{render();setTimeout(go,250)}};
 
@@ -636,7 +649,7 @@ function vUI(){$('#vplay').innerHTML=vAuto?IC_PAUSE:IC_PLAY;$('#vplay').hidden=(
 async function showV(){const im=$('#vimg');const n=vm.n||0;vStop();vUI();
  $('#vt').textContent=vm.title||'A lovely memory';$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;
  $('#vprev').style.visibility=n>1?'visible':'hidden';$('#vnext').style.visibility=n>1?'visible':'hidden';
- const want=vi;if(n>1)loadItem(vm,(vi+1)%n);const it=(await loadItem(vm,vi))||{kind:'img',url:''};if(want!==vi)return;const vv=$('#vvid');
+ const want=vi;if(n>1)loadThumb(vm,(vi+1)%n);$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;const lt=setTimeout(()=>{if(want===vi)$('#vn').textContent+=' · loading…'},600);const it=(await loadItem(vm,vi))||{kind:'img',url:''};clearTimeout(lt);if(want!==vi)return;$('#vn').textContent=`${fmt(vm.date)} · ${vi+1} / ${n}`;const vv=$('#vvid');
  if(it.kind==='video'){im.style.display='none';vv.style.display='block';vv.src=it.url;vv.onended=()=>{if(vAuto&&n>1){vi=(vi+1)%n;showV()}};const p=vv.play();if(p&&p.catch)p.catch(()=>{});Music.duck(true)}
  else{vv.pause();vv.removeAttribute('src');vv.style.display='none';im.style.display='';Music.duck(false);im.classList.remove('kb');void im.offsetWidth;im.src=it.url;im.classList.add('kb');vArm(it.kind==='gif'?SLIDE+1800:SLIDE)}}
 function openViewer(m,i){vm=m;vi=i;vAuto=true;$('#vimg').removeAttribute('src');$('#viewer').classList.add('on');showV()}
@@ -653,7 +666,7 @@ $('#expBtn').onclick=async()=>{toast('Preparing backup…');const out={v:2,setti
  for(const m of mems){const arr=await loadPhotos(m);const photos=[];for(const it of arr)photos.push(it.url.startsWith('data:')?it.url:await b2d(await fetch(it.url).then(r=>r.blob())));out.memories.push(Object.assign({},m,{photos}))}
  const a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='memory-book-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)};
 async function uploadMany(list,label){let k=0;for(const m of list){k++;toast(`${label} ${k}/${list.length}…`);
-  const photos=[];for(const p of m.photos||[]){const blob=typeof p==='string'?await fetch(p).then(r=>r.blob()):p;const ty=blob.type||'';if(ty.startsWith('video/')||ty==='image/gif')photos.push({kind:ty==='image/gif'?'gif':'video',file:blob,url:URL.createObjectURL(blob)});else{const d=await shrink(blob);photos.push({kind:'img',data:d,url:d})}}
+  const photos=[];for(const p of m.photos||[]){const blob=typeof p==='string'?await fetch(p).then(r=>r.blob()):p;const ty=blob.type||'';if(ty.startsWith('video/')||ty==='image/gif'){const u=URL.createObjectURL(blob);photos.push({kind:ty==='image/gif'?'gif':'video',file:blob,url:u,poster:ty==='image/gif'?null:await posterOf(u)})}else{const d=await shrink(blob);photos.push({kind:'img',data:d,url:d})}}
   if(!photos.length)continue;const mm={id:m.id||uid(),ch:CH[m.ch]?m.ch:'moments',title:m.title||'',date:m.date||today(),note:m.note||'',created:m.created||Date.now(),n:photos.length};
   await Cloud.put(mm,photos);PH.set(mm.id,Promise.resolve(photos.map(it=>({kind:it.kind,url:it.url}))))}}
 $('#impFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());close();

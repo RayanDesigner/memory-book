@@ -80,7 +80,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .deco{height:62px;position:relative;margin:0 0 2px;overflow:hidden}
 .book{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
 .book::-webkit-scrollbar{display:none}
-.page{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;display:grid;place-items:center;padding:14px 26px 18px}
+.page{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;display:grid;place-items:center;padding:30px 28px 54px}
 .leaf{width:min(100%,420px);height:100%;max-height:660px;background:var(--paper);border-radius:6px 18px 18px 6px;position:relative;padding:18px 18px 20px;display:flex;flex-direction:column;will-change:transform;
   box-shadow:3px 3px 0 rgba(0,0,0,.05),6px 6px 0 rgba(0,0,0,.035),0 22px 44px rgba(0,0,0,.2)}
 [data-theme=wedding] .leaf{background:radial-gradient(120% 80% at 50% 0%,#fffefb,#fdf8ef)}
@@ -175,10 +175,10 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .ou.on{opacity:1;transform:rotate(var(--r))}
 .ou img{width:100%;height:auto;display:block;animation:ouFloat 6s ease-in-out infinite;animation-delay:var(--d)}
 @keyframes ouFloat{50%{transform:translateY(-8px) rotate(2deg)}}
-.ou.l{left:max(-34px,calc(50% - 215px - 18vw))}.ou.r{right:max(-34px,calc(50% - 215px - 18vw))}
+.ou.l{left:max(10px,calc(50% - 215px - 18vw))}.ou.r{right:max(10px,calc(50% - 215px - 18vw))}
 .ou.car{width:clamp(110px,30vw,230px)}
-@media (max-width:380px),(max-height:800px){.chap .stk.couple{width:80px!important;bottom:-46px!important;left:-22px!important}}
-@media (max-width:600px){.ou.hide-m{display:none}.ou{width:24vw}.ou.l{left:-9vw}.ou.r{right:-9vw}.ou.car{width:38vw}.ou.car.l{left:-16vw}.ou.car.r{right:-16vw}}
+@media (max-width:380px),(max-height:800px){.chap .stk.couple{width:80px!important;bottom:-8px!important;left:-14px!important}}
+@media (max-width:760px){#outer{display:none}}
 .garland{display:flex;justify-content:center;align-items:center;gap:2px;height:100%}
 .garland > div{width:40px;animation:sway 5s ease-in-out infinite;transform-origin:50% 100%}
 .garland > div.big{width:62px}
@@ -244,13 +244,13 @@ textarea.field{min-height:84px;resize:vertical;font-family:var(--serif);font-sty
 .toast{position:fixed;left:50%;bottom:calc(160px + var(--safe-b));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.4s var(--ease);z-index:70;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1;transform:translateX(-50%)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
-@media (min-width:700px){.page{padding:20px 40px}}
-@media (max-width:600px){.page{padding-bottom:70px}#fab{width:52px;height:52px;right:16px}}
+@media (min-width:700px){.page{padding:32px 44px 56px}}
+@media (max-width:600px){.page{padding-bottom:74px}#fab{width:52px;height:52px;right:16px}}
 @media (max-height:740px){
  [data-theme=wedding] .deco{height:78px}.deco{height:50px}
  .chap-art{transform:scale(.74);margin:-22px 0 -28px}
  .chap h2{font-size:31px}.chap .line{font-size:22px;margin:2px 0 6px}.chap .count{margin:2px 0 8px}
- .page{padding-top:8px;padding-bottom:62px}.leaf{padding:14px 14px 14px}
+ .page{padding-top:26px;padding-bottom:68px}.leaf{padding:14px 14px 14px}
  .cap{padding-top:8px}.cap h3{font-size:24px}.cap .note{font-size:17px;-webkit-line-clamp:2}
  #fab{width:46px;height:46px;bottom:calc(80px + var(--safe-b));right:14px}#fab svg{width:22px;height:22px}
  .tab{padding:5px 0 4px}.tabs{margin-bottom:calc(8px + var(--safe-b))}
@@ -407,7 +407,7 @@ moments:{num:'Chapter Four',name:'Sweet Moments',short:'Moments',line:'Little th
 };
 const ORDER=['wedding','trips','cafe','moments'];
 const LAY={1:[{l:7,t:3,w:86,h:94,r:2}],2:[{l:2,t:2,w:62,h:68,r:-5},{l:36,t:28,w:62,h:68,r:4}],3:[{l:1,t:0,w:56,h:56,r:-6},{l:43,t:6,w:56,h:54,r:5},{l:18,t:42,w:62,h:56,r:-1}]};
-const SPOTS=[{top:'-18px',left:'-16px'},{top:'-22px',right:'-12px'},{top:'44%',right:'-24px'},{bottom:'110px',left:'-20px'},{bottom:'-38px',left:'6%'}];
+const SPOTS=[{top:'-12px',left:'-12px'},{top:'-12px',right:'-10px'},{top:'44%',right:'-14px'},{bottom:'110px',left:'-14px'},{bottom:'-26px',left:'6%'}];
 
 /* ================= STATE ================= */
 let settings=Object.assign({a:'Rami',b:'Fedaa',since:''},store.get('album.settings.en',{}));
@@ -525,8 +525,8 @@ function chapterPage(n){const c=CH[cur];const p=el('section','page chap');const 
  <p class="kick">${c.num}</p><h2>${c.name}</h2><p class="line">${c.line}</p>
  <p class="count">${n?countTxt(n):'No memories here yet'}</p>
  ${n?'<p class="swipe">Swipe to turn the page <span>→</span></p>':'<button class="btn add1">Add the first memory</button>'}</div>`;
- if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,104,'bottom:-34px;left:-26px',-8,600));
- if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(4,96,'bottom:-34px;left:-24px',-8,600));
+ if(cur==='wedding')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(7,100,'bottom:-12px;left:-16px',-8,600));
+ if(cur==='trips')p.querySelector('.leaf').insertAdjacentHTML('beforeend',cpl(4,92,'bottom:-12px;left:-16px',-8,600));
  const b=p.querySelector('.add1');if(b)b.onclick=openAdd;return p}
 function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el('div','leaf');p.appendChild(leaf);
  const col=el('div','collage');leaf.appendChild(col);const np=Math.min(3,m.n||0);const L=LAY[np]||LAY[1];
@@ -542,8 +542,8 @@ function memPage(m){const p=el('section','page');p.dataset.id=m.id;const leaf=el
  const r=rng(m.id);const pool=[...new Set(CH[m.ch].stk)].concat(CH[m.ch].stk.filter((v,i,a)=>a.indexOf(v)!==i));const spots=SPOTS.filter((_,i)=>!((m.ch==='wedding'||m.ch==='trips')&&i===0));const n=2+Math.floor(r()*2);let html='';
  for(let i=0;i<n;i++){const si=Math.floor(r()*pool.length),pi=Math.floor(r()*spots.length);const nm=pool.splice(si,1)[0],sp=spots.splice(pi,1)[0];
   html+=stk(nm,Object.entries(sp).map(([a,b])=>a+':'+b).join(';'),Math.round(r()*40-20),i*140,Math.round((nm==='rose'?72:56)+r()*24))}
- if(m.ch==='cafe')html+=stk('pizza','bottom:22px;right:-16px',12,420,74);
- if(m.ch==='wedding'||m.ch==='trips'){let h=0;for(const c of m.id)h=(h*31+c.charCodeAt(0))>>>0;html+=cpl(h,m.ch==='trips'?92:100,'top:-30px;left:-26px',(h%14)-7,520,m.ch)}
+ if(m.ch==='cafe')html+=stk('pizza','bottom:22px;right:-12px',12,420,74);
+ if(m.ch==='wedding'||m.ch==='trips'){let h=0;for(const c of m.id)h=(h*31+c.charCodeAt(0))>>>0;html+=cpl(h,m.ch==='trips'?92:100,'top:-14px;left:-16px',(h%14)-7,520,m.ch)}
  leaf.insertAdjacentHTML('beforeend',html);return p}
 let io;
 let near;
